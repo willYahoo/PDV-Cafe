@@ -18,6 +18,7 @@ const CustomerSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  cafesFidelidade: { type: Number, default: 0, min: 0 },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

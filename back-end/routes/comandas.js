@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const Customer = require('../models/Customer');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -17,7 +18,7 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const comanda = await Comanda.create({ mesa: req.body.mesa, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, atendente: req.user.username });
+    const comanda = await Comanda.create({ mesa: req.body.mesa, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, atendente: req.user.username });
     res.status(201).json(comanda);
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
@@ -30,7 +31,10 @@ router.post('/:id/itens', auth, async (req, res) => {
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantity) || quantity < 0.001) return res.status(400).json({ msg: 'Item inválido' });
     if (!product.vendidoFracionado && !Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
-    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda });
+    const modificadores = Array.isArray(req.body.modificadores)
+      ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
+      : [];
+    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
     await comanda.save();
     res.json(comanda);
   } catch (err) { res.status(400).json({ msg: err.message }); }
@@ -66,6 +70,8 @@ router.post('/:id/fechar', auth, async (req, res) => {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta' || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
+    const metodoPagamento = req.body.metodoPagamento;
+    if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja'].includes(metodoPagamento)) throw new Error('Selecione uma forma de pagamento');
     const totals = new Map();
     comanda.itens.forEach((item) => totals.set(String(item.produtoId), (totals.get(String(item.produtoId)) || 0) + item.quantidade));
     for (const [productId, quantity] of totals) {
@@ -75,8 +81,10 @@ router.post('/:id/fechar', auth, async (req, res) => {
     const subtotal = money(comanda.itens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0));
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
-    const order = new Order({ itens: comanda.itens, subtotal, desconto: discount, total: money(subtotal - discount), clienteNome: comanda.clienteNome, atendente: req.user.username, comandaId: comanda.id });
+    const total = money(subtotal - discount);
+    const order = new Order({ itens: comanda.itens, subtotal, desconto: discount, total, clienteNome: comanda.clienteNome, atendente: req.user.username, comandaId: comanda.id, pagamentos: [{ tipo: metodoPagamento, valorRecebido: total, dataPagamento: new Date(), quitado: true }] });
     await order.save({ session });
+    if (comanda.clienteId) await Customer.findByIdAndUpdate(comanda.clienteId, { $inc: { cafesFidelidade: 1 } }, { session });
     comanda.status = 'fechada'; comanda.pedidoId = order.id;
     await comanda.save({ session });
     await session.commitTransaction();

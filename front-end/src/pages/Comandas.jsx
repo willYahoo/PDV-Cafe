@@ -13,6 +13,8 @@ export default function Comandas() {
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [discount, setDiscount] = useState('0');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentError, setPaymentError] = useState(false);
   const { showToast } = useToast();
 
   const load = async () => {
@@ -25,6 +27,7 @@ export default function Comandas() {
   };
   useEffect(() => { load(); }, []);
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
+  const total = Math.max(0, subtotal - (Number(discount) || 0));
   const chosenProduct = products.find((product) => product._id === productId);
 
   const create = async (event) => {
@@ -43,7 +46,8 @@ export default function Comandas() {
   const removeItem = async (itemId) => { await api.delete(`/comandas/${selected._id}/itens/${itemId}`); load(); };
   const close = async () => {
     if (!selected || !window.confirm(`Fechar a comanda #${selected.numero}?`)) return;
-    try { const { data } = await api.post(`/comandas/${selected._id}/fechar`, { desconto: Number(discount) }); showToast(`Comanda fechada: pedido #${data.pedido.numero}`, 'success'); setDiscount('0'); load(); }
+    if (!paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento para fechar a comanda', 'warning'); return; }
+    try { const { data } = await api.post(`/comandas/${selected._id}/fechar`, { desconto: Number(discount), metodoPagamento: paymentMethod }); showToast(`Comanda fechada: pedido #${data.pedido.numero}`, 'success'); setDiscount('0'); setPaymentMethod(''); setPaymentError(false); load(); }
     catch (error) { showToast(error.response?.data?.msg || 'Erro ao fechar comanda', 'error'); }
   };
 
@@ -69,8 +73,8 @@ export default function Comandas() {
             <input required type="number" min="0.001" step={chosenProduct?.vendidoFracionado ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ width: 90 }} />
             <button type="submit">Adicionar</button>
           </form>
-          {(selected.itens || []).map((item) => <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}><span><b>{item.nome}</b><br /><small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small></span><span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)}>×</button></span></div>)}
-          <div style={{ borderTop: '2px solid var(--accent-primary)', paddingTop: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}><b>Total: {formatMoney(subtotal)}</b><input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} title="Desconto" style={{ width: 85 }} /><button onClick={close}>Fechar comanda</button></div>
+          {(selected.itens || []).map((item) => <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}><span><b>{item.nome}</b><br /><small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>{item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}</span><span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`}>×</button></span></div>)}
+          <div style={{ borderTop: '2px solid var(--accent-primary)', paddingTop: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><div><small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small><b style={{ fontSize: 20, color: 'var(--accent-primary)' }}>{formatMoney(total)}</b></div><input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} title="Desconto" style={{ width: 85 }} /><select required value={paymentMethod} onChange={(e) => { setPaymentMethod(e.target.value); setPaymentError(false); }} aria-label="Forma de pagamento" style={{ minHeight: 40, borderColor: paymentError ? 'var(--error-bg)' : 'var(--input-border)' }}><option value="">Forma de pagamento</option><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="cartao_credito">Cartão de crédito</option><option value="cartao_debito">Cartão de débito</option><option value="credito_loja">Crédito na loja</option></select><button onClick={close} style={{ background: 'var(--accent-primary)', color: '#fff', fontWeight: 700 }}>Fechar comanda</button></div>
         </>}
       </section>
     </div>

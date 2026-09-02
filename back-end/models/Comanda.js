@@ -7,12 +7,14 @@ const itemSchema = new mongoose.Schema({
   precoUnitario: { type: Number, required: true, min: 0 },
   quantidade: { type: Number, required: true, min: 0.001 },
   unidadeVenda: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], default: 'un' },
+  modificadores: { type: [String], default: [] },
 }, { _id: true });
 
 const comandaSchema = new mongoose.Schema({
   numero: { type: String, unique: true },
   mesa: { type: String, trim: true },
   clienteNome: { type: String, trim: true, default: 'Cliente nao identificado' },
+  clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   observacao: { type: String, trim: true },
   itens: { type: [itemSchema], default: [] },
   status: { type: String, enum: ['aberta', 'fechada', 'cancelada'], default: 'aberta', index: true },

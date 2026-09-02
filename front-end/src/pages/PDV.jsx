@@ -14,6 +14,18 @@ const corCategoria = {
   Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b', border: 'rgba(100,116,139,.25)' }
 };
 
+const grupos = ['Todos', 'Favoritos', 'Bebidas quentes', 'Salgados', 'Doces', 'Bebidas geladas'];
+const favoritos = ['pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
+const grupoProduto = (produto) => {
+  const nome = produto.nome.toLowerCase();
+  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas quentes';
+  if (nome.includes('gelad') || nome.includes('suco') || nome.includes('refrigerante')) return 'Bebidas geladas';
+  if (nome.includes('doce') || nome.includes('bolo') || nome.includes('torta') || nome.includes('cookie')) return 'Doces';
+  if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Padaria') return 'Salgados';
+  return 'Outros';
+};
+const precisaModificar = (produto) => grupoProduto(produto) === 'Bebidas quentes';
+
 
 export default function PDV() {
   const [produtos, setProdutos] = useState([]);
@@ -22,6 +34,10 @@ export default function PDV() {
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState('');
   const [mesa, setMesa] = useState('');
+  const [grupoAtivo, setGrupoAtivo] = useState('Todos');
+  const [produtoModificador, setProdutoModificador] = useState(null);
+  const [modificadores, setModificadores] = useState({ tamanho: 'Médio', leite: 'Integral', acompanhamentos: [] });
+  const [feedbackProduto, setFeedbackProduto] = useState(null);
   const [modalSucesso, setModalSucesso] = useState(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
@@ -44,9 +60,25 @@ export default function PDV() {
   };
 
 
-  const adicionarItem = (prod) => {
+  const tocarFeedback = () => {
+    try {
+      const contexto = new window.AudioContext();
+      const oscilador = contexto.createOscillator();
+      const ganho = contexto.createGain();
+      oscilador.frequency.value = 620;
+      ganho.gain.setValueAtTime(0.035, contexto.currentTime);
+      ganho.gain.exponentialRampToValueAtTime(0.001, contexto.currentTime + 0.08);
+      oscilador.connect(ganho).connect(contexto.destination);
+      oscilador.start();
+      oscilador.stop(contexto.currentTime + 0.08);
+    } catch { /* áudio pode ser bloqueado pelo navegador */ }
+  };
+
+  const adicionarItem = (prod, opcoes = {}) => {
     if (prod.estoque <= 0) return showToast('Produto sem estoque!', 'error');
-    const existe = carrinho.find(i => i.produtoId === prod._id);
+    const modificadoresItem = opcoes.modificadores || [];
+    const assinatura = modificadoresItem.join('|');
+    const existe = carrinho.find(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura);
     const incremento = prod.vendidoFracionado ? 0.001 : 1;
     if (existe && existe.quantidade + incremento > prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
     if (existe) {
@@ -55,9 +87,27 @@ export default function PDV() {
     } else {
       setCarrinho([...carrinho, {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
-        precoUnitario: prod.preco, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', vendidoFracionado: Boolean(prod.vendidoFracionado)
+        precoUnitario: prod.preco, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', vendidoFracionado: Boolean(prod.vendidoFracionado), modificadores: modificadoresItem
       }]);
     }
+    setFeedbackProduto(prod._id);
+    tocarFeedback();
+    window.setTimeout(() => setFeedbackProduto(null), 350);
+  };
+
+  const selecionarProduto = (prod) => {
+    if (precisaModificar(prod)) {
+      setProdutoModificador(prod);
+      setModificadores({ tamanho: 'Médio', leite: 'Integral', acompanhamentos: [] });
+      return;
+    }
+    adicionarItem(prod);
+  };
+
+  const confirmarModificadores = () => {
+    const escolhas = [modificadores.tamanho, modificadores.leite, ...modificadores.acompanhamentos];
+    adicionarItem(produtoModificador, { modificadores: escolhas });
+    setProdutoModificador(null);
   };
 
 
@@ -94,10 +144,11 @@ export default function PDV() {
     try {
       const { data: comanda } = await api.post('/comandas', {
         mesa: mesa.trim() || 'Balcão',
+        clienteId: clienteId || undefined,
         clienteNome: clienteSelecionado?.nome || 'Cliente não identificado',
       });
       for (const item of carrinho) {
-        await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade: item.quantidade });
+        await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade: item.quantidade, modificadores: item.modificadores || [] });
       }
       setCarrinho([]); setClienteId(''); setMesa('');
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
@@ -235,7 +286,11 @@ Obrigado pela preferência! 🙏`
     p.nome.toLowerCase().includes(busca.toLowerCase()) ||
     String(p.codigo).toLowerCase().includes(busca.toLowerCase()) ||
     p.categoria.toLowerCase().includes(busca.toLowerCase())
-  );
+  ).filter((produto) => {
+    if (grupoAtivo === 'Todos') return true;
+    if (grupoAtivo === 'Favoritos') return favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito));
+    return grupoProduto(produto) === grupoAtivo;
+  });
 
 
   return (
@@ -264,6 +319,7 @@ Obrigado pela preferência! 🙏`
                     outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48
                   }}
                 />
+                {clienteSelecionado && <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 9, background: 'var(--accent-light)', color: 'var(--text-secondary)', fontSize: 11 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}><strong style={{ color: 'var(--text-primary)' }}>Fidelidade</strong><span>{Math.min(5, clienteSelecionado.cafesFidelidade || 0)}/5 cafés</span></div><div style={{ height: 6, borderRadius: 99, background: 'var(--bg-tertiary)', overflow: 'hidden' }}><div style={{ width: `${Math.min(100, ((clienteSelecionado.cafesFidelidade || 0) / 5) * 100)}%`, height: '100%', background: 'var(--accent-secondary)', transition: 'width .3s ease' }} /></div><span style={{ display: 'block', marginTop: 4 }}>Faltam {Math.max(0, 5 - (clienteSelecionado.cafesFidelidade || 0))} para o próximo café</span></div>}
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Cliente</label>
@@ -298,6 +354,30 @@ Obrigado pela preferência! 🙏`
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16
           }}>
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Mais pedidos</h3>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Um toque para os favoritos da manhã</span>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 700 }}>ATENDIMENTO RÁPIDO</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
+                {produtos.filter((produto) => favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito))).slice(0, 5).map((produto) => (
+                  <button key={produto._id} onClick={() => selecionarProduto(produto)} style={{ padding: '11px 10px', minHeight: 58, textAlign: 'left', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                    <strong style={{ display: 'block', fontSize: 12 }}>{produto.nome}</strong>
+                    <span style={{ fontSize: 11, color: 'var(--accent-primary)' }}>R$ {produto.preco.toFixed(2).replace('.', ',')}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 2 }}>
+              {grupos.map((grupo) => (
+                <button key={grupo} onClick={() => setGrupoAtivo(grupo)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: grupoAtivo === grupo ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: grupoAtivo === grupo ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: grupoAtivo === grupo ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  {grupo}
+                </button>
+              ))}
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Produtos</h3>
               <span style={{
@@ -318,13 +398,13 @@ Obrigado pela preferência! 🙏`
                   const semEstoque = p.estoque <= 0;
                   const estoqueBaixo = p.estoque > 0 && p.estoque <= 5;
                   return (
-                    <div key={p._id} onClick={() => adicionarItem(p)} style={{
+                    <div key={p._id} onClick={() => selecionarProduto(p)} style={{
                       background: 'var(--bg-secondary)', border: `1.5px solid ${semEstoque ? 'var(--border-light)' : cat.border}`,
                       borderRadius: 14, padding: 12, cursor: semEstoque ? 'not-allowed' : 'pointer',
                       display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
                       minHeight: 120, opacity: semEstoque ? 0.5 : 1, transition: 'all .15s',
                       position: 'relative', overflow: 'hidden'
-                    }} className="product-card">
+                    }} className={`product-card ${feedbackProduto === p._id ? 'product-card-added' : ''}`}>
                       <div>
                         <span style={{
                           display: 'inline-block', padding: '2px 8px', borderRadius: 12,
@@ -395,6 +475,7 @@ Obrigado pela preferência! 🙏`
                             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                               Cod: {item.codigo} | Disp: {prod?.estoque ?? '-'}
                             </div>
+                            {item.modificadores?.length > 0 && <div style={{ fontSize: 11, color: 'var(--accent-primary)', marginTop: 4 }}>☕ {item.modificadores.join(' · ')}</div>}
                           </div>
                           <button onClick={() => removerItem(i)} style={{
                             background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)',
@@ -446,16 +527,6 @@ Obrigado pela preferência! 🙏`
                     <span>Subtotal</span>
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 }}>
-                    <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Desconto R$</span>
-                    <input type="number" step="0.01" min={0} value={desconto}
-                      onChange={e => setDesconto(e.target.value)}
-                      style={{
-                        width: 100, textAlign: 'right', padding: '8px 10px',
-                        border: '1px solid var(--border-color)', borderRadius: 8,
-                        fontSize: 14, background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 38
-                      }} />
-                  </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, fontWeight: 700, fontSize: 24, color: 'var(--accent-primary)' }}>
                     <span>Total</span>
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {total.toFixed(2).replace('.', ',')}</span>
@@ -473,6 +544,21 @@ Obrigado pela preferência! 🙏`
           </div>
         </div>
       </div>
+
+      {produtoModificador && (
+        <div onClick={() => setProdutoModificador(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(35, 22, 15, .48)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '18px 18px 12px 12px', padding: 22, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 18 }}>
+              <div><span style={{ color: 'var(--accent-primary)', fontSize: 11, fontWeight: 800, letterSpacing: '.08em' }}>PERSONALIZE SEU CAFÉ</span><h2 style={{ margin: '4px 0 0', fontSize: 22 }}>{produtoModificador.nome}</h2></div>
+              <button onClick={() => setProdutoModificador(null)} aria-label="Fechar personalização" style={{ border: 0, background: 'transparent', fontSize: 20, cursor: 'pointer' }}>×</button>
+            </div>
+            <fieldset style={{ border: 0, padding: 0, margin: '0 0 16px' }}><legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Tamanho</legend><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>{['Pequeno', 'Médio', 'Grande'].map((opcao) => <button type="button" key={opcao} onClick={() => setModificadores({ ...modificadores, tamanho: opcao })} style={{ minHeight: 44, borderRadius: 9, border: modificadores.tamanho === opcao ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', background: modificadores.tamanho === opcao ? 'var(--accent-light)' : 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700 }}>{opcao}</button>)}</div></fieldset>
+            <fieldset style={{ border: 0, padding: 0, margin: '0 0 16px' }}><legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Tipo de leite</legend><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>{['Integral', 'Desnatado', 'Aveia'].map((opcao) => <button type="button" key={opcao} onClick={() => setModificadores({ ...modificadores, leite: opcao })} style={{ minHeight: 44, borderRadius: 9, border: modificadores.leite === opcao ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', background: modificadores.leite === opcao ? 'var(--accent-light)' : 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700 }}>{opcao}</button>)}</div></fieldset>
+            <fieldset style={{ border: 0, padding: 0, margin: '0 0 20px' }}><legend style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Acompanhamentos</legend><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>{['Canela', 'Chocolate'].map((opcao) => { const marcado = modificadores.acompanhamentos.includes(opcao); return <button type="button" key={opcao} onClick={() => setModificadores({ ...modificadores, acompanhamentos: marcado ? modificadores.acompanhamentos.filter((item) => item !== opcao) : [...modificadores.acompanhamentos, opcao] })} style={{ minHeight: 44, borderRadius: 9, border: marcado ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', background: marcado ? 'var(--accent-light)' : 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700 }}>{marcado ? '✓ ' : ''}{opcao}</button>; })}</div></fieldset>
+            <button type="button" onClick={confirmarModificadores} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>Adicionar à comanda</button>
+          </div>
+        </div>
+      )}
 
 
       {/* ==========================================
@@ -545,6 +631,8 @@ Obrigado pela preferência! 🙏`
           .pdv-header-desktop { display: none !important; }
         }
         .product-card:active { transform: scale(0.97); }
+        .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
+        @keyframes item-added { 50% { transform: scale(1.035); box-shadow: 0 0 0 4px var(--accent-light); } }
       `}</style>
     </div>
   );

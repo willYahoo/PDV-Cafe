@@ -1,6 +1,11 @@
 /* ========================================
    MODO CLARO (padrão)
    ======================================== */
+:root {
+  --font-body: 'DM Sans', 'Trebuchet MS', sans-serif;
+  --font-heading: 'Fraunces', Georgia, serif;
+}
+
 [data-theme="light"],
 :root:not([data-theme="dark"]) {
   --bg-primary: #f6efe4;
