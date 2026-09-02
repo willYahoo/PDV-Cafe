@@ -1,0 +1,25 @@
+services:
+  - type: web
+    runtime: node
+    name: pdv-cafe-api-willplacetech
+    region: oregon
+    plan: free
+    rootDir: back-end
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: FRONTEND_URL
+        value: https://pdv-cafe-web-willplacetech.onrender.com
+
+  - type: web
+    runtime: static
+    name: pdv-cafe-web-willplacetech
+    rootDir: front-end
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://pdv-cafe-api-willplacetech.onrender.com/api
