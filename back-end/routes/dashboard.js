@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
       })),
       Comanda.countDocuments({ status: 'aberta' }),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteNome createdAt itens pagamentos'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteId clienteNome createdAt itens pagamentos'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
       Customer.countDocuments(),
@@ -78,6 +78,29 @@ router.get('/', async (req, res) => {
     const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
+    const clientesRelatorio = new Map(clientesRecentes.map((cliente) => [String(cliente._id), {
+      id: cliente._id,
+      nome: cliente.nome,
+      telefone: cliente.telefone || '',
+      pedidos: 0,
+      total: 0,
+      recebido: 0,
+      ultimaCompra: null,
+    }]));
+    const todosClientes = await Customer.find().sort({ nome: 1 }).select('nome telefone createdAt cafesFidelidade');
+    todosClientes.forEach((cliente) => {
+      if (!clientesRelatorio.has(String(cliente._id))) clientesRelatorio.set(String(cliente._id), { id: cliente._id, nome: cliente.nome, telefone: cliente.telefone || '', pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
+    });
+    vendasMes.forEach((pedido) => {
+      const chave = pedido.clienteId ? String(pedido.clienteId) : `nome:${pedido.clienteNome || ''}`;
+      if (!clientesRelatorio.has(chave)) clientesRelatorio.set(chave, { id: pedido.clienteId || chave, nome: pedido.clienteNome || 'Cliente não identificado', telefone: '', pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
+      const cliente = clientesRelatorio.get(chave);
+      cliente.pedidos += 1;
+      cliente.total += Number(pedido.total || 0);
+      cliente.recebido += (pedido.pagamentos || []).reduce((total, pagamento) => total + Number(pagamento.valorRecebido || 0), 0);
+      if (!cliente.ultimaCompra || new Date(pedido.createdAt) > new Date(cliente.ultimaCompra)) cliente.ultimaCompra = pedido.createdAt;
+    });
+    const relatorioClientes = [...clientesRelatorio.values()].map((cliente) => ({ ...cliente, pendente: Math.max(0, cliente.total - cliente.recebido) })).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
     const relatorioMes = {
       periodo: `${inicioDoPeriodo('mes').toLocaleDateString('pt-BR')} a ${new Date(fimDoMesAtual().getTime() - 1).toLocaleDateString('pt-BR')}`,
       pedidos: pedidosMes.length,
@@ -93,7 +116,7 @@ router.get('/', async (req, res) => {
       clientes: clientesMes.size,
       vendasPorDia: [...vendasPorDia.entries()].map(([dia, total]) => ({ dia, total })),
     };
-    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, atualizadoEm: new Date() });
+    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, atualizadoEm: new Date() });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
