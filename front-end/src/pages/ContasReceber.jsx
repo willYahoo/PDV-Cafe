@@ -30,6 +30,7 @@ export default function ContasReceber() {
   const [inicio, setInicio] = useState('');
   const [fim, setFim] = useState('');
   const [pagamentoModal, setPagamentoModal] = useState(null);
+  const [pagamentoConcluido, setPagamentoConcluido] = useState(null);
   const [pagamentoMultiploModal, setPagamentoMultiploModal] = useState(null);
   const [formPagamento, setFormPagamento] = useState({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'credito_loja', observacao: '' });
@@ -203,9 +204,10 @@ export default function ContasReceber() {
 
   const registrarPagamento = async () => {
     try {
-      await api.patch(`/orders/${pagamentoModal._id}/pagar`, formPagamento);
+      const { data: pedidoAtualizado } = await api.patch(`/orders/${pagamentoModal._id}/pagar`, formPagamento);
       showToast('✅ Pagamento registrado!', 'success');
       setPagamentoModal(null);
+      setPagamentoConcluido(pedidoAtualizado);
       setFormPagamento({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
       carregarPedidos();
     } catch { showToast('Erro ao registrar pagamento', 'error'); }
@@ -836,6 +838,37 @@ Obrigado! 🙏`
               <button onClick={registrarPagamento} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
               }}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pagamentoConcluido && (
+        <div onClick={() => setPagamentoConcluido(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16,
+            padding: 24, width: '100%', maxWidth: 360, textAlign: 'center'
+          }}>
+            <h3 style={{ margin: '0 0 8px' }}>✅ Pagamento registrado</h3>
+            <p style={{ margin: '0 0 18px', color: 'var(--text-secondary)' }}>
+              Pedido #{pagamentoConcluido.numero} atualizado com sucesso.
+            </p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <button onClick={() => pagamentoConcluido.status === 'pago' ? imprimirComprovante(pagamentoConcluido) : imprimirPedido(pagamentoConcluido)} style={{
+                padding: 12, background: 'var(--brand-brown)', color: '#fff', border: 'none', borderRadius: 10,
+                fontWeight: 700, cursor: 'pointer'
+              }}>🖨️ {pagamentoConcluido.status === 'pago' ? 'Imprimir quitação' : 'Imprimir pedido'}</button>
+              <button onClick={() => enviarWhatsApp(pagamentoConcluido)} style={{
+                padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10,
+                fontWeight: 700, cursor: 'pointer'
+              }}>💬 Enviar pelo WhatsApp</button>
+              <button onClick={() => setPagamentoConcluido(null)} style={{
+                padding: 11, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10,
+                fontWeight: 600, cursor: 'pointer'
+              }}>Fechar</button>
             </div>
           </div>
         </div>

@@ -16,10 +16,13 @@ const corCategoria = {
 
 const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
 const favoritos = ['cookie recheado', 'pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
+
+// FIX: 'gelad' verificado ANTES de 'café/espresso' para classificar corretamente
+// "Café Gelado" / "Espresso Gelado" → Bebidas geladas (não Bebidas Quentes)
 const grupoProduto = (produto) => {
   const nome = produto.nome.toLowerCase();
-  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas Quentes';
   if (nome.includes('gelad') || nome.includes('suco') || nome.includes('refrigerante')) return 'Bebidas geladas';
+  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas Quentes';
   if (nome.includes('doce') || nome.includes('bolo') || nome.includes('torta') || nome.includes('cookie')) return 'Doces';
   if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Salgados') return 'Salgados';
   if (produto.categoria === 'Café da manhã') return 'Café da manhã';
@@ -42,7 +45,7 @@ export default function PDV() {
   const [modalSucesso, setModalSucesso] = useState(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const selectClienteRef = useRef(null); // ✅ Referência para focar na caixa
+  const selectClienteRef = useRef(null);
 
 
   useEffect(() => { carregarDados(); }, []);
@@ -148,7 +151,9 @@ export default function PDV() {
         clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
       });
       for (const item of carrinho) {
-        await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade: item.quantidade, modificadores: item.modificadores || [] });
+        const quantidade = Number(item.quantidade);
+        if (!Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Quantidade de item inválida');
+        await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade, modificadores: item.modificadores || [] });
       }
       setCarrinho([]); setClienteId(''); setClienteNome('');
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
@@ -261,8 +266,7 @@ export default function PDV() {
 ${itensTexto}
 ━━━━━━━━━━━━━━━━
 💰 Subtotal: R$ ${pedido.subtotal.toFixed(2).replace('.',',')}
-${pedido.desconto > 0 ? `🎁 Desconto: -R$ ${pedido.desconto.toFixed(2).replace('.',',')}\n` : ''}
-💵 *TOTAL: R$ ${pedido.total.toFixed(2).replace('.',',')}*
+${pedido.desconto > 0 ? `🎁 Desconto: -R$ ${pedido.desconto.toFixed(2).replace('.',',')}\n` : ''}💵 *TOTAL: R$ ${pedido.total.toFixed(2).replace('.',',')}*
 Obrigado pela preferência! 🙏`
     );
     const telefone = pedido.clienteTelefone ? pedido.clienteTelefone.replace(/\D/g, '') : '';
@@ -324,7 +328,7 @@ Obrigado pela preferência! 🙏`
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Cliente</label>
                 <select
-                  ref={selectClienteRef} // ✅ Liga a referência
+                  ref={selectClienteRef}
                   value={clienteId}
                   onChange={e => setClienteId(e.target.value)}
                   style={{
@@ -355,7 +359,7 @@ Obrigado pela preferência! 🙏`
                 <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 700 }}>ATENDIMENTO RÁPIDO</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                {produtos.filter((produto) => favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito))).slice(0, 6).map((produto) => (
+                {produtos.filter((produto) => grupoProduto(produto) !== 'Bebidas geladas' && favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito))).slice(0, 6).map((produto) => (
                   <button key={produto._id} onClick={() => selecionarProduto(produto)} style={{ padding: '11px 10px', minHeight: 58, textAlign: 'left', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     <strong style={{ display: 'block', fontSize: 12 }}>{produto.nome}</strong>
                     <span style={{ fontSize: 11, color: 'var(--accent-primary)' }}>R$ {produto.preco.toFixed(2).replace('.', ',')}</span>
@@ -447,8 +451,8 @@ Obrigado pela preferência! 🙏`
               </h3>
             </div>
             {carrinho.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)', fontSize: 14 }}
->                <div style={{ fontSize: 40, marginBottom: 8 }}>🛒</div>
+              <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>🛒</div>
                 Carrinho vazio<br />
                 <span style={{ fontSize: 12 }}>Toque nos produtos ao lado</span>
               </div>

@@ -3,6 +3,8 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Customer = require('../models/Customer');
+const Order = require('../models/Order');
+const Comanda = require('../models/Comanda');
 
 // @route   GET api/customers
 // @desc    Listar clientes com busca
@@ -102,6 +104,14 @@ router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     const customer = await Customer.findById(req.params.id);
     if (!customer) {
       return res.status(404).json({ msg: 'Cliente não encontrado' });
+    }
+
+    const [pendenciaFinanceira, comandaAberta] = await Promise.all([
+      Order.exists({ clienteId: req.params.id, status: { $in: ['pendente', 'parcial'] } }),
+      Comanda.exists({ clienteId: req.params.id, status: 'aberta' }),
+    ]);
+    if (pendenciaFinanceira || comandaAberta) {
+      return res.status(409).json({ msg: 'Não é possível excluir cliente com pendências financeiras' });
     }
 
     await Customer.findByIdAndDelete(req.params.id);

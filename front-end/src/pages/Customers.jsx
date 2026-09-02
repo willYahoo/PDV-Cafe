@@ -82,7 +82,7 @@ export default function Customers() {
       setForm({ nome: '', telefone: '', endereco: '', cpf: '' });
       setEditing(null);
       carregar();
-    } catch (err) {
+    } catch {
       showToast('❌ Erro ao salvar', 'error');
     }
   };
@@ -102,9 +102,13 @@ export default function Customers() {
 
   const remover = async (id) => {
     if (!window.confirm('Excluir este cliente?')) return;
-    await api.delete(`/customers/${id}`);
-    showToast('Cliente removido', 'warning');
-    carregar();
+    try {
+      await api.delete(`/customers/${id}`);
+      showToast('Cliente removido', 'warning');
+      carregar();
+    } catch (err) {
+      showToast(err.response?.data?.msg || 'Erro ao excluir cliente', 'error');
+    }
   };
 
 
