@@ -4,6 +4,9 @@
 :root {
   --font-body: 'DM Sans', 'Trebuchet MS', sans-serif;
   --font-heading: 'Fraunces', Georgia, serif;
+  --brand-brown: #54362d;
+  --brand-gold: #c9a66b;
+  --brand-cream: #fff4e5;
 }
 
 [data-theme="light"],
@@ -48,6 +51,9 @@
    MODO ESCURO
    ======================================== */
 [data-theme="dark"] {
+  --brand-brown: #f1d2aa;
+  --brand-gold: #c59a5d;
+  --brand-cream: #f7e5cc;
   --bg-primary: #211713;
   --bg-secondary: #2d201a;
   --bg-tertiary: #402b21;

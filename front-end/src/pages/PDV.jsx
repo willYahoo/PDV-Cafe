@@ -15,7 +15,7 @@ const corCategoria = {
 };
 
 const grupos = ['Todos', 'Favoritos', 'Cafés quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
-const favoritos = ['pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
+const favoritos = ['cookie recheado', 'pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
 const grupoProduto = (produto) => {
   const nome = produto.nome.toLowerCase();
   if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Cafés quentes';
@@ -195,7 +195,7 @@ export default function PDV() {
         </style>
       </head>
       <body>
-        <div class="center bold" style="font-size:14px;">PDV CAFETERIA LOCAL</div>
+        <div class="center bold" style="font-size:14px;">SABOR DE ABRAÇO</div>
         <div class="center" style="font-size:10px;">Cupom Não Fiscal</div>
         <div class="linha-dupla"></div>
         
@@ -364,7 +364,7 @@ Obrigado pela preferência! 🙏`
                 <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 700 }}>ATENDIMENTO RÁPIDO</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                {produtos.filter((produto) => favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito))).slice(0, 5).map((produto) => (
+                {produtos.filter((produto) => favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito))).slice(0, 6).map((produto) => (
                   <button key={produto._id} onClick={() => selecionarProduto(produto)} style={{ padding: '11px 10px', minHeight: 58, textAlign: 'left', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     <strong style={{ display: 'block', fontSize: 12 }}>{produto.nome}</strong>
                     <span style={{ fontSize: 11, color: 'var(--accent-primary)' }}>R$ {produto.preco.toFixed(2).replace('.', ',')}</span>

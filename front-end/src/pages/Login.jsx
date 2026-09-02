@@ -57,16 +57,15 @@ export default function Login() {
           </button>
         </div>
 
-        <div style={{
-          width: 68, height: 68, borderRadius: 18, margin: '0 auto 16px',
-          background: 'var(--accent-light)', color: 'var(--accent-primary)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34
-        }}>☕</div>
+        <div style={{ width: 82, height: 82, borderRadius: '50%', margin: '0 auto 16px', background: 'var(--brand-cream)', color: 'var(--brand-brown)', border: '1px solid var(--brand-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, boxShadow: 'var(--shadow-sm)' }}>☕</div>
 
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>PDV Cafeteria</h1>
+        <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28, fontWeight: 700, margin: '0 0 4px', color: 'var(--brand-brown)' }}>Sabor de Abraço</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 20px' }}>
-          Entre para acessar o sistema
+          Cafés especiais · confeitaria afetiva
         </p>
+        <div style={{ margin: '0 auto 20px', padding: '9px 12px', borderRadius: 10, background: 'var(--accent-light)', border: '1px solid var(--accent-border)', color: 'var(--brand-brown)', fontSize: 12, fontWeight: 700 }}>
+          O cookie recheado é o abraço da casa
+        </div>
           <form onSubmit={handleSubmit}>
             <div style={{ textAlign: 'left', marginBottom: 14 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Usuário</label>
