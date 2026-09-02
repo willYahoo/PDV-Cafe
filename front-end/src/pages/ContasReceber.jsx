@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { buildNotaVendaHtml, buildNotaVendaTexto } from '../utils/notaVenda.js';
 
 
 const statusCor = {
@@ -102,10 +103,13 @@ export default function ContasReceber() {
 
 
   const toggleSelecionarTodos = () => {
-    const todosIds = new Set(pedidos.map(p => p._id));
-    if (selecionados.size === pedidos.length) {
+    const disponiveis = pedidos.filter(p => p.status === 'pendente' || p.status === 'parcial');
+    const todosIds = new Set(disponiveis.map(p => p._id));
+    if (selecionados.size === disponiveis.length && disponiveis.length > 0) {
       setSelecionados(new Set());
     } else {
+      const clientes = new Set(disponiveis.map(p => p.clienteId || `nome:${p.clienteNome || ''}`));
+      if (clientes.size > 1) return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
       setSelecionados(todosIds);
     }
   };
@@ -113,8 +117,21 @@ export default function ContasReceber() {
 
   const toggleSelecionar = (id) => {
     const proximo = new Set(selecionados);
-    if (proximo.has(id)) proximo.delete(id);
-    else proximo.add(id);
+    if (proximo.has(id)) {
+      proximo.delete(id);
+    } else {
+      const pedido = pedidos.find(p => p._id === id);
+      const selecionado = pedidos.find(p => proximo.has(p._id));
+      const chavePedido = pedido?.clienteId || `nome:${pedido?.clienteNome || ''}`;
+      const chaveSelecionado = selecionado?.clienteId || `nome:${selecionado?.clienteNome || ''}`;
+      if (selecionado && chavePedido !== chaveSelecionado) {
+        return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
+      }
+      if (pedido?.status === 'pago' || pedido?.status === 'cancelado') {
+        return showToast('Selecione apenas pedidos em aberto', 'warning');
+      }
+      proximo.add(id);
+    }
     setSelecionados(proximo);
   };
 
@@ -138,6 +155,9 @@ export default function ContasReceber() {
     if (selecionados.size === 0) {
       return showToast('Selecione pelo menos um pedido!', 'warning');
     }
+    const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
+    const clientes = new Set(pedidosSelecionados.map(p => p.clienteId || `nome:${p.clienteNome || ''}`));
+    if (clientes.size > 1) return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
     setPagamentoMultiploModal(true);
     setFormPagamentoMultiplo({
       tipo: 'credito_loja',
@@ -149,6 +169,7 @@ export default function ContasReceber() {
   // ✅ Registrar pagamento de TODOS os marcados
   const registrarPagamentoMultiplo = async () => {
     const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
+    const pedidosRecebidos = [];
     let sucessos = 0;
     let falhas = 0;
 
@@ -160,11 +181,12 @@ export default function ContasReceber() {
           : 0;
         const valorAReceber = valorTotal - valorPago;
 
-        await api.patch(`/orders/${pedido._id}/pagar`, {
+        const { data: pedidoAtualizado } = await api.patch(`/orders/${pedido._id}/pagar`, {
           tipo: formPagamentoMultiplo.tipo,
           valorRecebido: valorAReceber,
           observacao: formPagamentoMultiplo.observacao
         });
+        pedidosRecebidos.push(pedidoAtualizado);
         sucessos++;
       } catch {
         falhas++;
@@ -173,6 +195,21 @@ export default function ContasReceber() {
 
     setPagamentoMultiploModal(null);
     setSelecionados(new Set());
+    if (pedidosRecebidos.length > 0) {
+      const primeiro = pedidosRecebidos[0];
+      const total = pedidosRecebidos.reduce((soma, pedido) => soma + (Number(pedido.total) || 0), 0);
+      const subtotal = pedidosRecebidos.reduce((soma, pedido) => soma + (Number(pedido.subtotal || pedido.total) || 0), 0);
+      setPagamentoConcluido({
+        ...primeiro,
+        numero: pedidosRecebidos.map(pedido => pedido.numero).join(', '),
+        itens: pedidosRecebidos.flatMap(pedido => pedido.itens || []),
+        subtotal,
+        desconto: pedidosRecebidos.reduce((soma, pedido) => soma + (Number(pedido.desconto) || 0), 0),
+        total,
+        pagamentos: pedidosRecebidos.flatMap(pedido => pedido.pagamentos || []),
+        status: falhas === 0 ? 'pago' : 'parcial',
+      });
+    }
     carregarPedidos();
 
     if (sucessos > 0 && falhas === 0) {
@@ -225,6 +262,12 @@ export default function ContasReceber() {
 
 
   const imprimirComprovante = (pedido) => {
+    {
+      const janela = window.open('', '_blank', 'width=350,height=600');
+      janela.document.write(buildNotaVendaHtml(pedido, { titulo: 'COMPROVANTE DE PAGAMENTO' }));
+      janela.document.close();
+      return;
+    }
     const totalPago = Array.isArray(pedido.pagamentos)
       ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
       : 0;
@@ -273,6 +316,12 @@ export default function ContasReceber() {
 
 
   const imprimirPedido = (pedido) => {
+    {
+      const janela = window.open('', '_blank', 'width=350,height=600');
+      janela.document.write(buildNotaVendaHtml(pedido, { titulo: pedido.status === 'pago' ? 'NOTA DE VENDA' : 'PEDIDO PENDENTE' }));
+      janela.document.close();
+      return;
+    }
     const totalPago = Array.isArray(pedido.pagamentos)
       ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
       : 0;
@@ -353,6 +402,13 @@ export default function ContasReceber() {
 
 
   const enviarWhatsApp = (pedido) => {
+    {
+      const nota = encodeURIComponent(buildNotaVendaTexto(pedido, { titulo: pedido.status === 'pago' ? 'NOTA DE VENDA' : 'PEDIDO PENDENTE' }));
+      const telefone = pedido.clienteTelefone ? pedido.clienteTelefone.replace(/\D/g, '') : '';
+      const url = telefone ? `https://wa.me/55${telefone}?text=${nota}` : `https://wa.me/?text=${nota}`;
+      window.open(url, '_blank');
+      return;
+    }
     const totalPago = Array.isArray(pedido.pagamentos)
       ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
       : 0;
@@ -552,7 +608,7 @@ Obrigado! 🙏`
                   fontSize: 12, fontWeight: 600, cursor: 'pointer'
                 }}
               >
-                {selecionados.size === pedidos.length && pedidos.length > 0 ? '✓ Desmarcar Todos' : '☑ Selecionar Todos'}
+                {selecionados.size === pedidos.filter(p => p.status === 'pendente' || p.status === 'parcial').length && pedidos.some(p => p.status === 'pendente' || p.status === 'parcial') ? '✓ Desmarcar Todos' : '☑ Selecionar Todos'}
               </button>
             )}
             <div style={{ display: 'flex', gap: 6 }}>

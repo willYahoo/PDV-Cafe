@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { buildNotaVendaHtml, buildNotaVendaTexto } from '../utils/notaVenda.js';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
@@ -8,6 +9,8 @@ const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-B
 // ─── helpers de cupom / whatsapp ─────────────────────────────────────────────
 
 function buildCupomHtml(pedido, comanda) {
+  return buildNotaVendaHtml(pedido, { comandaNumero: comanda?.numero });
+  /* modelo antigo mantido abaixo apenas como referência de compatibilidade */
   const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
   const pagTipo = pedido.pagamentos?.[0]?.tipo || '';
   const labelPag = {
@@ -72,6 +75,13 @@ function imprimirCupom(pedido, comanda) {
 
 function enviarWhatsApp(pedido, comanda, telefone) {
   if (!pedido) return;
+  {
+    const nota = encodeURIComponent(buildNotaVendaTexto(pedido, { comandaNumero: comanda?.numero }));
+    const fone = telefone ? telefone.replace(/\D/g, '') : '';
+    const url = fone ? `https://wa.me/55${fone}?text=${nota}` : `https://wa.me/?text=${nota}`;
+    window.open(url, '_blank');
+    return;
+  }
   const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
   const itensTexto = pedido.itens.map(item =>
     `• ${item.nome}${item.modificadores?.length ? ` (${item.modificadores.join(', ')})` : ''}\n  ${item.quantidade} × R$ ${item.precoUnitario.toFixed(2).replace('.', ',')} = R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.', ',')}`
