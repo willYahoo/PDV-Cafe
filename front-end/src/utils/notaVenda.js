@@ -4,7 +4,6 @@ const pagamentoLabels = {
   cartao_credito: 'Cartao de credito',
   cartao_debito: 'Cartao de debito',
   credito_loja: 'Credito na loja',
-  cheque: 'Cheque',
 };
 
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');

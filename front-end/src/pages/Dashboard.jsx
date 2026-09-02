@@ -6,7 +6,7 @@ import { AuthContext } from '../context/AuthContextDefinition.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const labels = { dia: 'Hoje', semana: 'Esta semana', mes: 'Este mês' };
-const paymentLabels = { dinheiro: 'Dinheiro', pix: 'Pix', credito_loja: 'Credito na loja', cartao_credito: 'Cartao de credito', cartao_debito: 'Cartao de debito', cheque: 'Cheque' };
+const paymentLabels = { dinheiro: 'Dinheiro', pix: 'Pix', credito_loja: 'Credito na loja', cartao_credito: 'Cartao de credito', cartao_debito: 'Cartao de debito' };
 
 export default function Dashboard() {
   const { user } = useContext(AuthContext);

@@ -143,11 +143,11 @@ export default function Layout() {
 
         <nav style={{ flex: 1, overflowY: 'auto' }}>
           <Link to="/pdv" className={ativoPDV ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>🛒</span>
             <span style={{ whiteSpace: 'nowrap' }}>Novo Pedido</span>
           </Link>
           <Link to="/comandas" className={ativoComandas ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
             <span style={{ whiteSpace: 'nowrap' }}>Comandas</span>
           </Link>
           {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'nav-link active' : 'nav-link'}>
@@ -208,11 +208,11 @@ export default function Layout() {
           ========================================== */}
       <nav id="bottom-nav">
         <Link to="/pdv" className={ativoPDV ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>🛒</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Novo Pedido</span>
         </Link>
         <Link to="/comandas" className={ativoComandas ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>📋</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Comandas</span>
         </Link>
         {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'bottom-link active' : 'bottom-link'}>

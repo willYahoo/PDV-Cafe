@@ -13,7 +13,7 @@ const itemSchema = new mongoose.Schema({
 const pagamentoSchema = new mongoose.Schema({
   tipo: { 
     type: String, 
-    enum: ['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito', 'cheque'],
+    enum: ['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito'],
     default: 'credito_loja'
   },
   valorRecebido: { type: Number, default: 0 },

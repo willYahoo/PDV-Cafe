@@ -19,7 +19,6 @@ const formaPagamentoLabel = {
   credito_loja: '🏪 Crédito Loja',
   cartao_credito: '💳 Cartão Crédito',
   cartao_debito: '💳 Cartão Débito',
-  cheque: '📄 Cheque'
 };
 
 
@@ -829,7 +828,6 @@ Obrigado! 🙏`
                 <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
-                <option value="cheque">📄 Cheque</option>
               </select>
             </div>
 
@@ -877,7 +875,6 @@ Obrigado! 🙏`
                 <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
-                <option value="cheque">📄 Cheque</option>
               </select>
             </div>
 
@@ -928,7 +925,6 @@ Obrigado! 🙏`
               <option value="credito_loja">🏪 Crédito Loja</option>
               <option value="cartao_credito">💳 Cartão de Crédito</option>
               <option value="cartao_debito">💳 Cartão de Débito</option>
-              <option value="cheque">📄 Cheque</option>
             </select>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setQuitarClienteModal(false)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
