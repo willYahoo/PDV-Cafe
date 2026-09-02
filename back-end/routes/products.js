@@ -5,6 +5,8 @@ const Product = require('../models/Product');
 
 const router = express.Router();
 const units = ['un'];
+const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
+const antesDasOito = () => new Date().getHours() < 8;
 const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()];
 
 router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
@@ -32,7 +34,8 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const data = req.body;
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque: Number(data.estoque) || 0, estoqueMaximo: Number(data.estoqueMaximo) || 100, unidadeVenda: 'un', vendidoFracionado: false, createdBy: req.user.id });
+    const estoque = Number(data.estoque) || 0;
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), unidadeVenda: 'un', vendidoFracionado: false, createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
@@ -49,6 +52,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     const fields = {};
     ['codigo', 'nome', 'categoria', 'unidadeVenda'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['preco', 'estoque', 'estoqueMaximo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    if (data.estoque !== undefined && antesDasOito()) {
+      fields.estoqueInicialDia = Number(data.estoque);
+      fields.estoqueInicialData = dataLocal();
+    }
     fields.unidadeVenda = 'un';
     fields.vendidoFracionado = false;
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });

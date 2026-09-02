@@ -45,6 +45,8 @@ const ProductSchema = new mongoose.Schema({
     default: 100,
     min: [0.001, 'Estoque máximo deve ser maior que zero'],
   },
+  estoqueInicialDia: { type: Number, min: 0 },
+  estoqueInicialData: { type: String },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
