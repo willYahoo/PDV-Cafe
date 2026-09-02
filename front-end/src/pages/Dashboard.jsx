@@ -13,8 +13,9 @@ export default function Dashboard() {
   const { showToast } = useToast();
 
   useEffect(() => {
+    if (user?.role !== 'admin') return;
     api.get('/dashboard').then((response) => setData(response.data)).catch((error) => showToast(error.response?.data?.msg || 'Não foi possível carregar o dashboard', 'error'));
-  }, []);
+  }, [user?.role]);
 
   if (user?.role !== 'admin') return <Navigate to="/pdv" replace />;
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
+import { useToast } from '../components/Toast.jsx';
 
 export default function Orders() {
   const [pedidos, setPedidos] = useState([]);
@@ -7,6 +8,7 @@ export default function Orders() {
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [carregando, setCarregando] = useState(true);
   const [cancelando, setCancelando] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     carregar();
@@ -38,13 +40,13 @@ export default function Orders() {
     try {
       // ✅ Rota correta: /orders/:id/cancelar
       await api.patch(`/orders/${pedidoId}/cancelar`);
-      alert('✅ Pedido cancelado com sucesso! Estoque devolvido.');
+      showToast('Pedido cancelado com sucesso. Estoque devolvido.', 'success');
       setSelecionado(null);
       carregar(); // Recarrega a lista para atualizar o status
     } catch (err) {
       console.error('Erro ao cancelar pedido:', err);
       // ✅ Backend retorna { msg: '...' }
-      alert(err.response?.data?.msg || '❌ Erro ao cancelar pedido. Tente novamente.');
+      showToast(err.response?.data?.msg || 'Erro ao cancelar pedido. Tente novamente.', 'error');
     } finally {
       setCancelando(false);
     }
@@ -75,12 +77,12 @@ export default function Orders() {
 
   const getStatusInfo = (status) => {
     const map = {
-      pendente: { cor: '#f59e0b', texto: '⏳ PENDENTE' },
-      pago: { cor: '#22c55e', texto: '✅ PAGO' },
-      parcial: { cor: '#3b82f6', texto: '💰 PARCIAL' },
-      cancelado: { cor: '#ef4444', texto: '❌ CANCELADO' }
+      pendente: { cor: 'var(--warning-bg)', texto: 'Pendente' },
+      pago: { cor: 'var(--success-bg)', texto: 'Pago' },
+      parcial: { cor: 'var(--info-bg)', texto: 'Parcial' },
+      cancelado: { cor: 'var(--error-bg)', texto: 'Cancelado' }
     };
-    return map[status] || { cor: '#94a3b8', texto: status?.toUpperCase() || '—' };
+    return map[status] || { cor: 'var(--text-tertiary)', texto: status || '—' };
   };
 
   return (
@@ -106,8 +108,8 @@ export default function Orders() {
               padding: '6px 14px', borderRadius: '20px', border: 'none',
               fontSize: '12px', fontWeight: filtroStatus === item.valor ? '700' : '500',
               cursor: 'pointer', transition: 'all 0.2s',
-              background: filtroStatus === item.valor ? '#ea580c' : '#f1f5f9',
-              color: filtroStatus === item.valor ? '#fff' : '#475569'
+              background: filtroStatus === item.valor ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+              color: filtroStatus === item.valor ? '#fff' : 'var(--text-secondary)'
             }}
           >
             {item.label}
@@ -115,19 +117,19 @@ export default function Orders() {
         ))}
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid rgba(15,23,42,.08)', borderRadius: 16, padding: 16 }}>
+      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 16, boxShadow: 'var(--shadow-sm)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             Pedidos
-            <span style={{ background: 'rgba(234,88,12,.14)', color: '#ea580c', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+            <span style={{ background: 'var(--accent-light)', color: 'var(--accent-primary)', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
               {pedidos.length}
             </span>
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Total vendido:</span>
-            <span style={{ fontWeight: 700, color: '#16a34a', fontSize: 16 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total vendido:</span>
+            <span style={{ fontWeight: 700, color: 'var(--success-bg)', fontSize: 16 }}>
               {carregando ? (
-                <span style={{ color: '#94a3b8' }}>Carregando...</span>
+                <span style={{ color: 'var(--text-tertiary)' }}>Carregando...</span>
               ) : (
                 `R$ ${totalVendido.toFixed(2).replace('.', ',')}`
               )}
@@ -136,29 +138,29 @@ export default function Orders() {
         </div>
 
         {carregando ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
             ⏳ Carregando pedidos...
           </div>
         ) : (
           <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 650 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(15,23,42,.08)' }}>
+                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   {['Nº', 'Data', 'Status', 'Cliente', 'Itens', 'Total', 'Ver'].map(h => (
-                    <th key={h} style={{ padding: '10px 8px', textAlign: ['Total','Ver'].includes(h) ? 'right' : 'left', fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
+                    <th key={h} style={{ padding: '10px 8px', textAlign: ['Total','Ver'].includes(h) ? 'right' : 'left', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {pedidos.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: '#64748b', fontSize: 13 }}>Nenhum pedido realizado</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum pedido realizado</td></tr>
                 ) : pedidos.slice(0, 100).map(p => {
                   const statusInfo = getStatusInfo(p.status);
                   const valorTotal = Number(p?.total || p?.valorTotal || p?.subtotal || 0);
                   return (
-                    <tr key={p._id} style={{ borderBottom: '1px solid rgba(15,23,42,.06)' }}>
+                    <tr key={p._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                       <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontWeight: 700, fontSize: 13 }}>#{p.numero}</td>
-                      <td style={{ padding: '10px 8px', fontSize: 12, color: '#64748b' }}>
+                      <td style={{ padding: '10px 8px', fontSize: 12, color: 'var(--text-secondary)' }}>
                         {new Date(p.createdAt).toLocaleDateString('pt-BR')} {new Date(p.createdAt).toLocaleTimeString('pt-BR').slice(0, 5)}
                       </td>
                       <td style={{ padding: '10px 8px' }}>
@@ -171,13 +173,13 @@ export default function Orders() {
                       </td>
                       <td style={{ padding: '10px 8px', fontSize: 13, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.clienteNome}</td>
                       <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13 }}>{p.itens?.length || 0}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, color: '#ea580c', fontVariantNumeric: 'tabular-nums' }}>
+                      <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, color: 'var(--accent-primary)', fontVariantNumeric: 'tabular-nums' }}>
                         R$ {valorTotal.toFixed(2).replace('.', ',')}
                       </td>
                       <td style={{ padding: '10px 8px', textAlign: 'right' }}>
                         <button onClick={() => setSelecionado(p)} style={{
-                          padding: '6px 14px', background: 'rgba(234,88,12,.1)', color: '#ea580c',
-                          border: '1px solid rgba(234,88,12,.2)', borderRadius: 8, fontSize: 12,
+                          padding: '6px 14px', background: 'var(--accent-light)', color: 'var(--accent-primary)',
+                          border: '1px solid var(--accent-border)', borderRadius: 8, fontSize: 12,
                           fontWeight: 600, cursor: 'pointer', minHeight: 34
                         }}>Detalhes</button>
                       </td>
@@ -198,7 +200,7 @@ export default function Orders() {
           zIndex: 100, padding: 0
         }} className="modal-bg">
           <div onClick={e => e.stopPropagation()} style={{
-            background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500,
+            background: 'var(--bg-secondary)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 500,
             maxHeight: '85vh', overflowY: 'auto', padding: 24
           }} className="modal-inner">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -210,20 +212,20 @@ export default function Orders() {
               </div>
               <button onClick={() => setSelecionado(null)} style={{
                 background: 'transparent', border: 'none', fontSize: 26,
-                color: '#64748b', cursor: 'pointer', minWidth: 44, minHeight: 44
+                color: 'var(--text-secondary)', cursor: 'pointer', minWidth: 44, minHeight: 44
               }}>×</button>
             </div>
-            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
               📅 {new Date(selecionado.createdAt).toLocaleString('pt-BR')}<br />
               👤 {selecionado.clienteNome}<br />
               💼 Atendente: {selecionado.atendente || '—'}
             </div>
-            <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', paddingTop: 10, marginBottom: 10 }}>
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10, marginBottom: 10 }}>
               {(selecionado.itens || []).map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px dashed rgba(15,23,42,.08)' }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px dashed var(--border-light)' }}>
                   <div style={{ paddingRight: 10 }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{item.nome}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                       {item.quantidade} × R$ {Number(item.precoUnitario || 0).toFixed(2).replace('.', ',')}
                     </div>
                   </div>
@@ -233,18 +235,18 @@ export default function Orders() {
                 </div>
               ))}
             </div>
-            <div style={{ borderTop: '2px solid #ea580c', paddingTop: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#64748b', marginBottom: 4 }}>
+            <div style={{ borderTop: '2px solid var(--accent-primary)', paddingTop: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>
                 <span>Subtotal</span>
                 <span>R$ {Number(selecionado.subtotal || 0).toFixed(2).replace('.', ',')}</span>
               </div>
               {(selecionado.desconto || 0) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#16a34a', marginBottom: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--success-bg)', marginBottom: 4 }}>
                   <span>Desconto</span>
                   <span>-R$ {Number(selecionado.desconto || 0).toFixed(2).replace('.', ',')}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 22, color: '#ea580c', marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 22, color: 'var(--accent-primary)', marginTop: 8 }}>
                 <span>Total</span>
                 <span>R$ {Number(selecionado.total || selecionado.valorTotal || 0).toFixed(2).replace('.', ',')}</span>
               </div>
@@ -252,14 +254,14 @@ export default function Orders() {
 
             {/* ✅ BOTÃO CANCELAR — SÓ APARECE SE PENDENTE OU PARCIAL */}
             {podeCancelar(selecionado.status) && (
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(15,23,42,.08)' }}>
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-light)' }}>
                 <button
                   onClick={() => cancelarPedido(selecionado._id)}
                   disabled={cancelando}
                   style={{
                     width: '100%',
                     padding: '12px',
-                    background: cancelando ? '#fca5a5' : '#ef4444',
+                    background: cancelando ? 'var(--bg-tertiary)' : 'var(--error-bg)',
                     color: '#fff',
                     border: 'none',
                     borderRadius: 10,

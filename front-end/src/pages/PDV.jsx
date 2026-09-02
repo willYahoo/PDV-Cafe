@@ -593,20 +593,20 @@ Obrigado pela preferência! 🙏`
             <div style={{ borderTop: '1px solid rgba(15,23,42,.08)', marginBottom: 20 }}></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button onClick={() => imprimirCupom(modalSucesso)} style={{
-                width: '100%', padding: '14px', background: '#0f172a', color: '#fff',
+                width: '100%', padding: '14px', background: 'var(--brand-brown)', color: '#fff',
                 border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                 cursor: 'pointer', minHeight: 52, display: 'flex',
                 alignItems: 'center', justifyContent: 'center', gap: 10
               }}>🖨️ Imprimir Cupom</button>
               <button onClick={() => enviarWhatsApp(modalSucesso)} style={{
-                width: '100%', padding: '14px', background: '#16a34a', color: '#fff',
+                width: '100%', padding: '14px', background: 'var(--success-bg)', color: '#fff',
                 border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                 cursor: 'pointer', minHeight: 52, display: 'flex',
                 alignItems: 'center', justifyContent: 'center', gap: 10
               }}>💬 Enviar pelo WhatsApp</button>
               <button onClick={novaVenda} style={{
-                width: '100%', padding: '13px', background: 'rgba(234,88,12,.1)', color: '#ea580c',
-                border: '1.5px solid rgba(234,88,12,.25)', borderRadius: 12,
+                width: '100%', padding: '13px', background: 'var(--accent-light)', color: 'var(--accent-primary)',
+                border: '1.5px solid var(--accent-border)', borderRadius: 12,
                 fontSize: 14, fontWeight: 700, cursor: 'pointer', minHeight: 48
               }}>🛒 Iniciar Nova Venda</button>
               <button onClick={() => setModalSucesso(null)} style={{

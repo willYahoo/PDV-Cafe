@@ -25,11 +25,11 @@ export default function Layout() {
 
   // ✅ Título e ícone — UMA POR UMA, sem função
   let iconePagina = '☕';
-  let tituloPagina = 'Ponto de Venda';
+  let tituloPagina = 'Atendimento';
 
   if (location.pathname.startsWith('/pdv')) {
     iconePagina = '☕';
-    tituloPagina = 'Ponto de Venda';
+    tituloPagina = 'Atendimento';
   }
   if (location.pathname.startsWith('/produtos')) {
     iconePagina = '📦';
@@ -323,7 +323,7 @@ export default function Layout() {
           #sidebar-desktop {
             display: flex !important;
             position: fixed; top: 0; left: 0;
-            width: 200px;
+            width: 260px;
             height: 100vh;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border-color);
