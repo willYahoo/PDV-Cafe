@@ -8,7 +8,7 @@ const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', '
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', estoque: '', unidadeVenda: 'un', vendidoFracionado: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', estoque: '', estoqueMaximo: 100, unidadeVenda: 'un', vendidoFracionado: false };
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
@@ -58,7 +58,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), estoque: parseFloat(form.estoque) || 0, unidadeVenda: 'un', vendidoFracionado: false };
+    const dados = { ...form, preco: parseFloat(form.preco), estoque: parseFloat(form.estoque) || 0, estoqueMaximo: parseFloat(form.estoqueMaximo) || 100, unidadeVenda: 'un', vendidoFracionado: false };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -73,7 +73,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, unidadeVenda: 'un', vendidoFracionado: false });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, estoqueMaximo: p.estoqueMaximo || 100, unidadeVenda: 'un', vendidoFracionado: false });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -155,6 +155,12 @@ export default function Products() {
                 onChange={e => setForm({ ...form, estoque: e.target.value })}
                 style={inputStyle} />
             </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Estoque máximo</label>
+              <input type="number" step="0.001" min={0.001} placeholder="100" value={form.estoqueMaximo}
+                onChange={e => setForm({ ...form, estoqueMaximo: e.target.value })}
+                style={inputStyle} />
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button type="submit" style={{
@@ -201,7 +207,7 @@ export default function Products() {
           .form-grid-prod { grid-template-columns: 1fr 1fr !important; }
         }
         @media (min-width: 1024px) {
-          .form-grid-prod { grid-template-columns: 1fr 2fr 1fr 1fr 1fr !important; }
+          .form-grid-prod { grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr !important; }
         }
         .product-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
         .product-admin-card { min-height: 150px; display: flex; flex-direction: column; padding: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-tertiary); }

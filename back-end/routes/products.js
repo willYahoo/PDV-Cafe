@@ -5,7 +5,7 @@ const Product = require('../models/Product');
 
 const router = express.Router();
 const units = ['un'];
-const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()];
+const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()];
 
 router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
@@ -32,12 +32,12 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const data = req.body;
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque: Number(data.estoque) || 0, unidadeVenda: 'un', vendidoFracionado: false, createdBy: req.user.id });
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque: Number(data.estoque) || 0, estoqueMaximo: Number(data.estoqueMaximo) || 100, unidadeVenda: 'un', vendidoFracionado: false, createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
 
-router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -48,7 +48,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     const fields = {};
     ['codigo', 'nome', 'categoria', 'unidadeVenda'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
-    ['preco', 'estoque'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
+    ['preco', 'estoque', 'estoqueMaximo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
     fields.unidadeVenda = 'un';
     fields.vendidoFracionado = false;
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });
