@@ -149,12 +149,12 @@ export default function PDV() {
       const { data: comanda } = await api.post('/comandas', {
         clienteId: clienteId || undefined,
         clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
+        itens: carrinho.map((item) => ({
+          produtoId: item.produtoId,
+          quantidade: Number(item.quantidade),
+          modificadores: item.modificadores || [],
+        })),
       });
-      for (const item of carrinho) {
-        const quantidade = Number(item.quantidade);
-        if (!Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Quantidade de item inválida');
-        await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade, modificadores: item.modificadores || [] });
-      }
       setCarrinho([]); setClienteId(''); setClienteNome('');
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
       navigate('/comandas');

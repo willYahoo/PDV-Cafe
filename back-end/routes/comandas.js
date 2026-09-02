@@ -18,7 +18,18 @@ router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => 
 
 router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
-    const comanda = await Comanda.create({ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, atendente: req.user.username });
+    const itens = [];
+    for (const item of Array.isArray(req.body.itens) ? req.body.itens : []) {
+      const quantidade = Number(item.quantidade);
+      const product = await Product.findById(item.produtoId);
+      if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Item inválido');
+      if (!product.vendidoFracionado && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+      const modificadores = Array.isArray(item.modificadores)
+        ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
+        : [];
+      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
+    }
+    const comanda = await Comanda.create({ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, atendente: req.user.username });
     res.status(201).json(comanda);
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
