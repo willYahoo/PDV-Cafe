@@ -23,11 +23,11 @@ export default function Layout() {
   const ativoUsuarios = location.pathname.startsWith('/usuarios');
 
   // ✅ Título e ícone — UMA POR UMA, sem função
-  let iconePagina = '🛒';
+  let iconePagina = '☕';
   let tituloPagina = 'Ponto de Venda';
 
   if (location.pathname.startsWith('/pdv')) {
-    iconePagina = '🛒';
+    iconePagina = '☕';
     tituloPagina = 'Ponto de Venda';
   }
   if (location.pathname.startsWith('/produtos')) {
@@ -57,7 +57,7 @@ export default function Layout() {
 
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', fontFamily: "'Quicksand', sans-serif", color: 'var(--text-primary)', transition: 'background-color 0.3s ease, color 0.3s ease' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', fontFamily: 'var(--font-body)', color: 'var(--text-primary)', transition: 'background-color 0.3s ease, color 0.3s ease' }}>
       
       {/* ==========================================
           HEADER MOBILE
@@ -123,7 +123,7 @@ export default function Layout() {
             width: 44, height: 44, borderRadius: 12,
             background: 'var(--accent-light)', color: 'var(--accent-primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22
-          }}>🛒</div>
+          }}>☕</div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>PDV Cafeteria</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Sistema de Vendas</div>
@@ -148,7 +148,7 @@ export default function Layout() {
         <nav style={{ flex: 1, overflowY: 'auto' }}>
           {/* ✅ ITEM 1 — PDV */}
           <Link to="/pdv" className={ativoPDV ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>🛒</span>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
             <span style={{ whiteSpace: 'nowrap' }}>PDV</span>
           </Link>
           {/* ✅ ITEM 2 — Produtos */}
@@ -221,7 +221,7 @@ export default function Layout() {
       <nav id="bottom-nav">
         {/* ✅ ITEM 1 — PDV */}
         <Link to="/pdv" className={ativoPDV ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>🛒</span>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>PDV</span>
         </Link>
         {/* ✅ ITEM 2 — Produtos */}
@@ -305,7 +305,7 @@ export default function Layout() {
           CSS GLOBAL
           ========================================== */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
         
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; }

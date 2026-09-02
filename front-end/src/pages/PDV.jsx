@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
@@ -20,9 +21,10 @@ export default function PDV() {
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState('');
-  const [desconto, setDesconto] = useState(0);
+  const [mesa, setMesa] = useState('');
   const [modalSucesso, setModalSucesso] = useState(null);
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const selectClienteRef = useRef(null); // ✅ Referência para focar na caixa
 
 
@@ -81,42 +83,27 @@ export default function PDV() {
 
 
   const subtotal = carrinho.reduce((ac, i) => ac + i.precoUnitario * i.quantidade, 0);
-  const total = Math.max(0, subtotal - (parseFloat(desconto) || 0));
+  const total = subtotal;
   const totalItens = carrinho.reduce((ac, i) => ac + i.quantidade, 0);
   const clienteSelecionado = clientes.find(c => c._id === clienteId);
 
 
-  // ==========================================
-  // ✅ FINALIZAR VENDA — COM VALIDAÇÃO DE CLIENTE
-  // ==========================================
   const finalizar = async () => {
     if (!carrinho.length) return showToast('Carrinho vazio!', 'warning');
 
-    const descontoNumerico = Number(desconto) || 0;
-    if (descontoNumerico < 0 || descontoNumerico > subtotal) {
-      return showToast('O desconto não pode ser maior que o subtotal.', 'warning');
-    }
-
     try {
-      const res = await api.post('/orders', {
-        itens: carrinho, subtotal, desconto: descontoNumerico, total,
-        clienteId, clienteNome: clienteSelecionado?.nome || 'Cliente não identificado',
-        clienteTelefone: clienteSelecionado?.telefone || ''
-      });
-      
-      showToast('✅ Venda finalizada com sucesso!', 'success');
-      
-      setModalSucesso({
-        ...res.data,
+      const { data: comanda } = await api.post('/comandas', {
+        mesa: mesa.trim() || 'Balcão',
         clienteNome: clienteSelecionado?.nome || 'Cliente não identificado',
-        clienteTelefone: clienteSelecionado?.telefone || '',
-        tipo: 'finalizado'
       });
-      
-      setCarrinho([]); setDesconto(0); setClienteId('');
-      carregarDados();
+      for (const item of carrinho) {
+        await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade: item.quantidade });
+      }
+      setCarrinho([]); setClienteId(''); setMesa('');
+      showToast(`Comanda #${comanda.numero} aberta`, 'success');
+      navigate('/comandas');
     } catch (err) {
-      showToast(err.response?.data?.msg || 'Erro ao finalizar', 'error');
+      showToast(err.response?.data?.msg || 'Erro ao abrir comanda', 'error');
     }
   };
 
@@ -255,8 +242,8 @@ Obrigado pela preferência! 🙏`
     <div>
       {/* Cabeçalho PDV */}
       <div className="pdv-header-desktop" style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>🛒 Ponto de Venda</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Selecione os produtos para iniciar a venda</p>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>☕ Atendimento</h1>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Monte o pedido e abra uma comanda para a mesa ou balcão</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="pdv-grid">
         {/* COLUNA PRODUTOS */}
@@ -292,6 +279,18 @@ Obrigado pela preferência! 🙏`
                   <option value="">Cliente não identificado</option>
                   {clientes.map(c => <option key={c._id} value={c._id}>{c.nome}</option>)}
                 </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Mesa / balcão</label>
+                <input
+                  placeholder="Ex.: Mesa 4 ou balcão" value={mesa}
+                  onChange={e => setMesa(e.target.value)}
+                  style={{
+                    width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)',
+                    borderRadius: 10, fontSize: 16, boxSizing: 'border-box',
+                    outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -462,12 +461,11 @@ Obrigado pela preferência! 🙏`
                     <span style={{ fontVariantNumeric: 'tabular-nums' }}>R$ {total.toFixed(2).replace('.', ',')}</span>
                   </div>
                   
-                  {/* ✅ APENAS O BOTÃO FINALIZAR PEDIDO */}
                   <button onClick={finalizar} style={{
                     width: '100%', padding: '14px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
                     cursor: 'pointer', minHeight: 52
-                  }}>✅ Finalizar Pedido</button>
+                  }}>☕ Abrir Comanda</button>
                   
                 </div>
               </>
@@ -540,7 +538,7 @@ Obrigado pela preferência! 🙏`
           .pdv-grid { grid-template-columns: 2fr 1fr !important; }
         }
         @media (min-width: 768px) {
-          .busca-grid { grid-template-columns: 2fr 1fr !important; }
+          .busca-grid { grid-template-columns: 1.4fr 1fr 1fr !important; }
           .pdv-header-desktop { display: block !important; }
         }
         @media (max-width: 767px) {

@@ -33,7 +33,7 @@ export default function Login() {
       background: isDark 
         ? 'linear-gradient(160deg, #0f1419 0%, #1a1f2e 50%, #1a2332 100%)'
         : 'linear-gradient(160deg, #fff7ed 0%, #fefcf8 50%, #f0fdf4 100%)',
-      padding: 20, fontFamily: "'Quicksand', sans-serif",
+      padding: 20, fontFamily: 'var(--font-body)',
       transition: 'background 0.3s ease'
     }}>
       <div style={{

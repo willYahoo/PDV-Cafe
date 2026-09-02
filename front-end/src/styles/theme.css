@@ -3,22 +3,22 @@
    ======================================== */
 [data-theme="light"],
 :root:not([data-theme="dark"]) {
-  --bg-primary: #fefcf8;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f5f3f0;
-  --bg-hover: #f0eeeb;
+  --bg-primary: #f6efe4;
+  --bg-secondary: #fffaf2;
+  --bg-tertiary: #efe2d0;
+  --bg-hover: #ead8c2;
   
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --text-tertiary: #94a3b8;
+  --text-primary: #38251d;
+  --text-secondary: #765f50;
+  --text-tertiary: #a99383;
   
-  --border-color: #e5e4e7;
-  --border-light: #f1f0ef;
+  --border-color: #ddc9b5;
+  --border-light: #eddfd1;
   
-  --accent-primary: #ea580c;
-  --accent-secondary: #aa3bff;
-  --accent-light: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
+  --accent-primary: #a94f2b;
+  --accent-secondary: #d18a3d;
+  --accent-light: rgba(169, 79, 43, 0.12);
+  --accent-border: rgba(169, 79, 43, 0.35);
   
   --success-bg: #16a34a;
   --success-text: #ffffff;
@@ -33,32 +33,32 @@
   --shadow-md: rgba(0, 0, 0, 0.08) 0 8px 16px;
   --shadow-lg: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
   
-  --input-bg: #ffffff;
-  --input-border: #e5e4e7;
-  --input-text: #0f172a;
-  --input-placeholder: #94a3b8;
+  --input-bg: #fffdf8;
+  --input-border: #ddc9b5;
+  --input-text: #38251d;
+  --input-placeholder: #a99383;
 }
 
 /* ========================================
    MODO ESCURO
    ======================================== */
 [data-theme="dark"] {
-  --bg-primary: #0f1419;
-  --bg-secondary: #1a1f2e;
-  --bg-tertiary: #24293d;
-  --bg-hover: #2d3447;
+  --bg-primary: #211713;
+  --bg-secondary: #2d201a;
+  --bg-tertiary: #402b21;
+  --bg-hover: #50372a;
   
-  --text-primary: #f3f4f6;
-  --text-secondary: #d1d5db;
-  --text-tertiary: #9ca3af;
+  --text-primary: #fff3df;
+  --text-secondary: #d9bda1;
+  --text-tertiary: #a98972;
   
-  --border-color: #374151;
-  --border-light: #1f2937;
+  --border-color: #624333;
+  --border-light: #3d2a21;
   
-  --accent-primary: #ff8a50;
-  --accent-secondary: #d084ff;
-  --accent-light: rgba(208, 132, 255, 0.1);
-  --accent-border: rgba(208, 132, 255, 0.5);
+  --accent-primary: #e7a35d;
+  --accent-secondary: #8fbd9a;
+  --accent-light: rgba(231, 163, 93, 0.16);
+  --accent-border: rgba(231, 163, 93, 0.42);
   
   --success-bg: #10b981;
   --success-text: #ffffff;
@@ -73,10 +73,10 @@
   --shadow-md: rgba(0, 0, 0, 0.4) 0 8px 16px;
   --shadow-lg: rgba(0, 0, 0, 0.5) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
   
-  --input-bg: #1a1f2e;
-  --input-border: #374151;
-  --input-text: #f3f4f6;
-  --input-placeholder: #9ca3af;
+  --input-bg: #241914;
+  --input-border: #624333;
+  --input-text: #fff3df;
+  --input-placeholder: #a98972;
 }
 
 /* ========================================
@@ -87,6 +87,11 @@ html {
   background: var(--bg-primary);
   color: var(--text-primary);
   transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body {
+  background-image: radial-gradient(circle at 8% 8%, var(--accent-light) 0, transparent 24rem),
+    radial-gradient(circle at 92% 88%, rgba(139, 169, 130, 0.1) 0, transparent 22rem);
 }
 
 /* Links */
