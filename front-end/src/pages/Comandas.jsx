@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
-import { buildNotaVendaHtml, buildNotaVendaTexto } from '../utils/notaVenda.js';
+import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
@@ -73,15 +73,10 @@ function imprimirCupom(pedido, comanda) {
   janela.document.close();
 }
 
-function enviarWhatsApp(pedido, comanda, telefone) {
+async function enviarWhatsApp(pedido, comanda, telefone) {
   if (!pedido) return;
-  {
-    const nota = encodeURIComponent(buildNotaVendaTexto(pedido, { comandaNumero: comanda?.numero }));
-    const fone = telefone ? telefone.replace(/\D/g, '') : '';
-    const url = fone ? `https://wa.me/55${fone}?text=${nota}` : `https://wa.me/?text=${nota}`;
-    window.open(url, '_blank');
-    return;
-  }
+  await compartilharNotaWhatsApp(pedido, { comandaNumero: comanda?.numero }, telefone);
+  return;
   const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
   const itensTexto = pedido.itens.map(item =>
     `• ${item.nome}${item.modificadores?.length ? ` (${item.modificadores.join(', ')})` : ''}\n  ${item.quantidade} × R$ ${item.precoUnitario.toFixed(2).replace('.', ',')} = R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.', ',')}`

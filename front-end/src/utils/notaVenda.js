@@ -8,6 +8,7 @@ const pagamentoLabels = {
 
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');
 const textoSeguro = (value) => String(value ?? '').replace(/[<&>\"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '\"': '&quot;', "'": '&#39;' }[char]));
+const logoUrl = () => typeof window !== 'undefined' ? `${window.location.origin}/Abraco1.png` : '/Abraco1.png';
 
 export const totalPago = (pedido) => (Array.isArray(pedido?.pagamentos)
   ? pedido.pagamentos.reduce((total, pagamento) => total + (Number(pagamento.valorRecebido) || 0), 0)
@@ -32,6 +33,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
       * { box-sizing:border-box; font-family:'Courier New',monospace; font-size:12px; }
       body { width:76mm; margin:0; padding:4mm; color:#000; }
       .center { text-align:center; } .bold { font-weight:bold; }
+      .logo { display:block; width:52px; height:52px; object-fit:contain; margin:0 auto 4px; }
       .marca { font-size:16px; font-weight:bold; letter-spacing:.4px; }
       .subtitulo { font-size:11px; margin-top:2px; }
       .linha, .separador { border-top:1px dashed #000; margin:8px 0; }
@@ -48,7 +50,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
       .rodape { margin-top:14px; font-size:11px; line-height:1.5; }
       @media print { @page { margin:0; size:80mm auto; } body { margin:4mm; } }
     </style></head><body>
-    <div class="center marca">SABOR DE ABRACO</div>
+    <div class="center"><img class="logo" src="${logoUrl()}" alt="Sabor de Abraço"><div class="marca">SABOR DE ABRACO</div></div>
     <div class="center subtitulo">${titulo}</div>
     <div class="separador"></div>
     <div class="dados">
@@ -75,7 +77,30 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
     </body></html>`;
 }
 
-export function buildNotaVendaTexto(pedido, { comandaNumero, titulo = 'NOTA DE VENDA' } = {}) {
+export function buildNotaVendaTexto(pedido, opcoes = {}) {
+  const texto = buildNotaVendaTextoBase(pedido, opcoes);
+  return texto.replace('*SABOR DE ABRAÇO*', `🖼️ ${logoUrl()}\n*SABOR DE ABRAÇO*`);
+}
+
+export async function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
+  if (!pedido) return;
+  const texto = buildNotaVendaTexto(pedido, opcoes);
+  try {
+    const resposta = await fetch('/Abraco1.png');
+    const arquivo = new File([await resposta.blob()], 'logo-sabor-de-abraco.png', { type: 'image/png' });
+    if (navigator.share && navigator.canShare?.({ files: [arquivo] })) {
+      await navigator.share({ title: 'Sabor de Abraço', text: texto, files: [arquivo] });
+      return;
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+  }
+  const fone = telefone ? telefone.replace(/\D/g, '') : (pedido.clienteTelefone || '').replace(/\D/g, '');
+  const url = fone ? `https://wa.me/55${fone}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank');
+}
+
+function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VENDA' } = {}) {
   if (!pedido) return '';
   const pago = totalPago(pedido);
   const falta = Math.max(0, Number(pedido.total || 0) - pago);

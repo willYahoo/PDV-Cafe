@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 
 
 const corCategoria = {
@@ -202,6 +203,7 @@ export default function PDV() {
         </style>
       </head>
       <body>
+        <div class="center"><img src="${window.location.origin}/Abraco1.png" alt="Sabor de Abraço" style="width:52px;height:52px;object-fit:contain;"></div>
         <div class="center bold" style="font-size:14px;">SABOR DE ABRAÇO</div>
         <div class="center" style="font-size:10px;">Cupom Não Fiscal</div>
         <div class="linha-dupla"></div>
@@ -253,6 +255,7 @@ export default function PDV() {
   // ==========================================
   const enviarWhatsApp = (pedido) => {
     if (!pedido) return;
+    return compartilharNotaWhatsApp(pedido);
     
     const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
     
@@ -260,7 +263,8 @@ export default function PDV() {
       `• ${item.nome}\n  ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')} = R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}`
     ).join('\n');
     const texto = encodeURIComponent(
-`🛒 *PEDIDO* #${pedido.numero}
+`🖼️ ${window.location.origin}/Abraco1.png
+🛒 *PEDIDO* #${pedido.numero}
 📅 ${data}
 👤 Cliente: ${pedido.clienteNome}
 💼 Atendente: ${pedido.atendente}

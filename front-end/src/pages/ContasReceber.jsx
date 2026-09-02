@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
-import { buildNotaVendaHtml, buildNotaVendaTexto } from '../utils/notaVenda.js';
+import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
 
 
@@ -420,13 +420,7 @@ export default function ContasReceber() {
 
 
   const enviarWhatsApp = (pedido) => {
-    {
-      const nota = encodeURIComponent(buildNotaVendaTexto(pedido, { titulo: pedido.status === 'pago' ? 'NOTA DE VENDA' : 'PEDIDO PENDENTE' }));
-      const telefone = pedido.clienteTelefone ? pedido.clienteTelefone.replace(/\D/g, '') : '';
-      const url = telefone ? `https://wa.me/55${telefone}?text=${nota}` : `https://wa.me/?text=${nota}`;
-      window.open(url, '_blank');
-      return;
-    }
+    return compartilharNotaWhatsApp(pedido, { titulo: pedido.status === 'pago' ? 'NOTA DE VENDA' : 'PEDIDO PENDENTE' });
     const totalPago = Array.isArray(pedido.pagamentos)
       ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
       : 0;
