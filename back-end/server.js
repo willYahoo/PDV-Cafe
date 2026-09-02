@@ -6,9 +6,6 @@ const rateLimit = require('express-rate-limit');
 const colors = require('colors');
 const connectDB = require('./db');
 
-// Conectar ao banco para os dados do PDV; o login mockado não consulta usuários.
-connectDB();
-
 const app = express();
 const allowedOrigins = (process.env.FRONTEND_URL || 'https://pdv-mern-1.onrender.com')
   .split(',')
@@ -78,6 +75,11 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`.yellow.bold);
-});
+const startServer = async () => {
+  await connectDB();
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`.yellow.bold);
+  });
+};
+
+startServer();
