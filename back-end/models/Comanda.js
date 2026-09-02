@@ -1,0 +1,31 @@
+const mongoose = require('mongoose');
+
+const itemSchema = new mongoose.Schema({
+  produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  codigo: String,
+  nome: { type: String, required: true },
+  precoUnitario: { type: Number, required: true, min: 0 },
+  quantidade: { type: Number, required: true, min: 0.001 },
+  unidadeVenda: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], default: 'un' },
+}, { _id: true });
+
+const comandaSchema = new mongoose.Schema({
+  numero: { type: String, unique: true },
+  mesa: { type: String, trim: true },
+  clienteNome: { type: String, trim: true, default: 'Cliente nao identificado' },
+  observacao: { type: String, trim: true },
+  itens: { type: [itemSchema], default: [] },
+  status: { type: String, enum: ['aberta', 'fechada', 'cancelada'], default: 'aberta', index: true },
+  atendente: { type: String, required: true },
+  pedidoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
+}, { timestamps: true });
+
+comandaSchema.pre('save', async function(next) {
+  if (!this.numero) {
+    const ultima = await this.constructor.findOne({}, {}, { sort: { numero: -1 } });
+    this.numero = String(ultima ? Number(ultima.numero) + 1 : 1).padStart(4, '0');
+  }
+  next();
+});
+
+module.exports = mongoose.model('Comanda', comandaSchema);
