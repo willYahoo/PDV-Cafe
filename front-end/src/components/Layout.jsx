@@ -17,7 +17,6 @@ export default function Layout() {
   const ativoPDV = location.pathname.startsWith('/pdv');
   const ativoProdutos = location.pathname.startsWith('/produtos');
   const ativoClientes = location.pathname.startsWith('/clientes');
-  const ativoPedidos = location.pathname.startsWith('/pedidos');
   const ativoComandas = location.pathname.startsWith('/comandas');
   const ativoContasReceber = location.pathname.startsWith('/contas-receber');
   const ativoUsuarios = location.pathname.startsWith('/usuarios');
@@ -38,10 +37,6 @@ export default function Layout() {
   if (location.pathname.startsWith('/clientes')) {
     iconePagina = '👤';
     tituloPagina = 'Clientes';
-  }
-  if (location.pathname.startsWith('/pedidos')) {
-    iconePagina = '📋';
-    tituloPagina = 'Pedidos';
   }
   if (location.pathname.startsWith('/comandas')) {
     iconePagina = '☕';
@@ -163,11 +158,6 @@ export default function Layout() {
             <span style={{ fontSize: 18, flexShrink: 0 }}>👤</span>
             <span style={{ whiteSpace: 'nowrap' }}>Clientes</span>
           </Link>
-          {/* ✅ ITEM 4 — Pedidos */}
-          <Link to="/pedidos" className={ativoPedidos ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
-            <span style={{ whiteSpace: 'nowrap' }}>Pedidos</span>
-          </Link>
           <Link to="/comandas" className={ativoComandas ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
             <span style={{ whiteSpace: 'nowrap' }}>Comandas</span>
@@ -236,11 +226,6 @@ export default function Layout() {
         <Link to="/clientes" className={ativoClientes ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>👤</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Clientes</span>
-        </Link>
-        {/* ✅ ITEM 4 — Pedidos */}
-        <Link to="/pedidos" className={ativoPedidos ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>📋</span>
-          <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Pedidos</span>
         </Link>
         <Link to="/comandas" className={ativoComandas ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>

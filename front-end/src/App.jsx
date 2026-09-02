@@ -8,7 +8,6 @@ import Login from './pages/Login.jsx';
 import PDV from './pages/PDV.jsx';
 import Products from './pages/Products.jsx';
 import Customers from './pages/Customers.jsx';
-import Orders from './pages/Orders.jsx';
 import ContasReceber from './pages/ContasReceber';
 import Users from './pages/Users';
 import Comandas from './pages/Comandas.jsx';
@@ -28,7 +27,7 @@ export default function App() {
                   <Route path="/pdv" element={<PDV />} />
                   <Route path="/produtos" element={<Products />} />
                   <Route path="/clientes" element={<Customers />} />
-                  <Route path="/pedidos" element={<Orders />} />
+                  <Route path="/pedidos" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/comandas" element={<Comandas />} />
                   <Route path="/contas-receber" element={<ContasReceber />} />
                   <Route path="/usuarios" element={<Users />} />
