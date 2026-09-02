@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast.jsx';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
+const locaisAtendimento = ['Balcão', ...Array.from({ length: 12 }, (_, indice) => `Mesa ${indice + 1}`)];
 
 export default function Comandas() {
   const [comandas, setComandas] = useState([]);
@@ -58,7 +59,7 @@ export default function Comandas() {
   return <div className="comandas-page">
     <div className="page-heading"><h1>☕ Comandas</h1><p>Abra mesas, lance consumos e feche no caixa.</p></div>
     <form onSubmit={create} className="comandas-open-form">
-      <input className="comandas-field" placeholder="Mesa / balcão" value={newCommand.mesa} onChange={(e) => setNewCommand({ ...newCommand, mesa: e.target.value })} />
+      <select className="comandas-field" value={newCommand.mesa} onChange={(e) => setNewCommand({ ...newCommand, mesa: e.target.value })} required aria-label="Mesa ou balcão"><option value="">Selecione o local</option>{locaisAtendimento.map(local => <option key={local} value={local}>{local}</option>)}</select>
       <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
       <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
       <button type="submit">Abrir comanda</button>

@@ -16,6 +16,7 @@ const corCategoria = {
 
 const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
 const favoritos = ['cookie recheado', 'pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
+const locaisAtendimento = ['Balcão', ...Array.from({ length: 12 }, (_, indice) => `Mesa ${indice + 1}`)];
 const grupoProduto = (produto) => {
   const nome = produto.nome.toLowerCase();
   if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas Quentes';
@@ -344,15 +345,18 @@ Obrigado pela preferência! 🙏`
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Mesa / balcão</label>
-                <input
-                  placeholder="Ex.: Mesa 4 ou balcão" value={mesa}
+                <select
+                  required value={mesa}
                   onChange={e => setMesa(e.target.value)}
                   style={{
                     width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)',
                     borderRadius: 10, fontSize: 16, boxSizing: 'border-box',
                     outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48
                   }}
-                />
+                >
+                  <option value="">Selecione o local</option>
+                  {locaisAtendimento.map(local => <option key={local} value={local}>{local}</option>)}
+                </select>
               </div>
             </div>
           </div>
