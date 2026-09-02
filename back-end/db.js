@@ -15,6 +15,7 @@ const connectDB = async () => {
     await Product.updateMany({ categoria: 'Bebidas' }, { $set: { categoria: 'Bebidas geladas' } });
     await Product.updateMany({ categoria: 'Padaria' }, { $set: { categoria: 'Salgados' } });
     await Product.updateMany({ categoria: { $in: ['Limpeza', 'Higiene', 'Hortifruti'] } }, { $set: { categoria: 'Outros' } });
+    await Product.updateMany({}, { $set: { unidadeVenda: 'un', vendidoFracionado: false } });
 
     const adminExists = await User.exists({ username: 'admin' });
     if (!adminExists) {

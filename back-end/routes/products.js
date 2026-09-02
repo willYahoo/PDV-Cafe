@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const Product = require('../models/Product');
 
 const router = express.Router();
-const units = ['un', 'kg', 'g', 'l', 'ml'];
+const units = ['un'];
 const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()];
 
 router.get('/', auth, async (req, res) => {
@@ -32,7 +32,7 @@ router.post('/', auth, validations, async (req, res) => {
     const data = req.body;
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque: Number(data.estoque) || 0, unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), createdBy: req.user.id });
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque: Number(data.estoque) || 0, unidadeVenda: 'un', vendidoFracionado: false, createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
@@ -49,7 +49,8 @@ router.put('/:id', auth, [body('codigo').optional().trim().notEmpty(), body('nom
     const fields = {};
     ['codigo', 'nome', 'categoria', 'unidadeVenda'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['preco', 'estoque'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
-    if (data.vendidoFracionado !== undefined) fields.vendidoFracionado = Boolean(data.vendidoFracionado);
+    fields.unidadeVenda = 'un';
+    fields.vendidoFracionado = false;
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
     res.json(product);

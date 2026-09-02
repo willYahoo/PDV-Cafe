@@ -30,7 +30,7 @@ router.post('/:id/itens', auth, async (req, res) => {
     const product = await Product.findById(req.body.produtoId);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantity) || quantity < 0.001) return res.status(400).json({ msg: 'Item inválido' });
-    if (!product.vendidoFracionado && !Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    if (!Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const modificadores = Array.isArray(req.body.modificadores)
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
@@ -59,6 +59,16 @@ router.delete('/:id/itens/:itemId', auth, async (req, res) => {
     const comanda = await Comanda.findById(req.params.id);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     comanda.itens.pull(req.params.itemId);
+    await comanda.save();
+    res.json(comanda);
+  } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+
+router.patch('/:id/cancelar', auth, async (req, res) => {
+  try {
+    const comanda = await Comanda.findById(req.params.id);
+    if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
+    comanda.status = 'cancelada';
     await comanda.save();
     res.json(comanda);
   } catch (err) { res.status(400).json({ msg: err.message }); }

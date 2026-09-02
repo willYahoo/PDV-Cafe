@@ -22,7 +22,7 @@ const ProductSchema = new mongoose.Schema({
   },
   unidadeVenda: {
     type: String,
-    enum: ['un', 'kg', 'g', 'l', 'ml'],
+    enum: ['un'],
     default: 'un',
   },
   vendidoFracionado: {

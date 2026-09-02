@@ -28,7 +28,6 @@ export default function Comandas() {
   useEffect(() => { load(); }, []);
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
   const total = Math.max(0, subtotal - (Number(discount) || 0));
-  const chosenProduct = products.find((product) => product._id === productId);
 
   const create = async (event) => {
     event.preventDefault();
@@ -44,6 +43,11 @@ export default function Comandas() {
     catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar item', 'error'); }
   };
   const removeItem = async (itemId) => { await api.delete(`/comandas/${selected._id}/itens/${itemId}`); load(); };
+  const cancel = async () => {
+    if (!selected || !window.confirm(`Cancelar a comanda #${selected.numero}?`)) return;
+    try { await api.patch(`/comandas/${selected._id}/cancelar`); showToast('Comanda cancelada', 'warning'); load(); }
+    catch (error) { showToast(error.response?.data?.msg || 'Erro ao cancelar comanda', 'error'); }
+  };
   const close = async () => {
     if (!selected || !window.confirm(`Fechar a comanda #${selected.numero}?`)) return;
     if (!paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento para fechar a comanda', 'warning'); return; }
@@ -62,6 +66,7 @@ export default function Comandas() {
     <div className="comandas-columns">
       <section className="comandas-card comandas-list-card">
         <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
+        <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
         {comandas.map((command) => <button key={command._id} onClick={() => setSelected(command)} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
           <b>#{command.numero}</b> {command.mesa && `• ${command.mesa}`}<br /><small>{command.clienteNome} · {command.itens.length} itens</small>
         </button>)}
@@ -69,12 +74,12 @@ export default function Comandas() {
       <section className="comandas-card comandas-detail-card">
         {!selected ? <p>Selecione ou abra uma comanda.</p> : <><h2 style={{ marginTop: 0 }}>Comanda #{selected.numero} {selected.mesa && `— ${selected.mesa}`}</h2>
           <form onSubmit={addItem} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
-            <select required value={productId} onChange={(e) => setProductId(e.target.value)} style={{ flex: 1 }}><option value="">Adicionar produto…</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}/{product.unidadeVenda || 'un'}</option>)}</select>
-            <input required type="number" min="0.001" step={chosenProduct?.vendidoFracionado ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ width: 90 }} />
+            <select required value={productId} onChange={(e) => setProductId(e.target.value)} style={{ flex: 1 }}><option value="">Adicionar produto…</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}</option>)}</select>
+            <input required type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} style={{ width: 90 }} />
             <button type="submit">Adicionar</button>
           </form>
           {(selected.itens || []).map((item) => <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}><span><b>{item.nome}</b><br /><small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>{item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}</span><span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`}>×</button></span></div>)}
-          <div style={{ borderTop: '2px solid var(--accent-primary)', paddingTop: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><div><small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small><b style={{ fontSize: 20, color: 'var(--accent-primary)' }}>{formatMoney(total)}</b></div><input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} title="Desconto" style={{ width: 85 }} /><select required value={paymentMethod} onChange={(e) => { setPaymentMethod(e.target.value); setPaymentError(false); }} aria-label="Forma de pagamento" style={{ minHeight: 40, borderColor: paymentError ? 'var(--error-bg)' : 'var(--input-border)' }}><option value="">Forma de pagamento</option><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="cartao_credito">Cartão de crédito</option><option value="cartao_debito">Cartão de débito</option><option value="credito_loja">Crédito na loja</option></select><button onClick={close} style={{ background: 'var(--accent-primary)', color: '#fff', fontWeight: 700 }}>Fechar comanda</button></div>
+          <div style={{ borderTop: '2px solid var(--accent-primary)', paddingTop: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><div><small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small><b style={{ fontSize: 20, color: 'var(--accent-primary)' }}>{formatMoney(total)}</b></div><input type="number" min="0" max={subtotal} step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value)} title="Desconto" style={{ width: 85 }} /><select required value={paymentMethod} onChange={(e) => { setPaymentMethod(e.target.value); setPaymentError(false); }} aria-label="Forma de pagamento" style={{ minHeight: 40, borderColor: paymentError ? 'var(--error-bg)' : 'var(--input-border)' }}><option value="">Forma de pagamento</option><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option><option value="cartao_credito">Cartão de crédito</option><option value="cartao_debito">Cartão de débito</option><option value="credito_loja">Crédito na loja</option></select><button onClick={close} style={{ background: 'var(--accent-primary)', color: '#fff', fontWeight: 700 }}>Fechar comanda</button><button onClick={cancel} style={{ background: 'var(--bg-tertiary)', color: 'var(--error-bg)', fontWeight: 700 }}>Cancelar</button></div>
         </>}
       </section>
     </div>
@@ -91,6 +96,10 @@ export default function Comandas() {
       .comandas-card-heading h2 { margin: 0; font-size: 16px; color: var(--text-primary); }
       .comandas-count { min-width: 30px; padding: 5px 9px; border-radius: 20px; background: var(--accent-light); color: var(--accent-primary); font-weight: 800; text-align: center; }
       .comandas-list-card > button { background: var(--bg-tertiary) !important; border-radius: 10px !important; min-height: 58px; }
+      .comandas-quick-products { padding: 12px; margin-bottom: 12px; border-radius: 10px; background: var(--accent-light); color: var(--text-secondary); font-size: 11px; }
+      .comandas-quick-products > div { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+      .comandas-quick-products button { min-height: 42px; padding: 6px 8px; border: 1px solid var(--accent-border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); text-align: left; font-size: 11px; cursor: pointer; }
+      .comandas-quick-products button.selected { border: 2px solid var(--accent-primary); color: var(--accent-primary); }
       @media (max-width: 760px) { .comandas-columns { grid-template-columns: 1fr; } .comandas-detail-card { min-width: 0; } }
       @media (max-width: 520px) { .comandas-open-form, .comandas-card { padding: 14px; } }
     `}</style>
