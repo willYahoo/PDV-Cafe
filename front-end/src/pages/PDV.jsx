@@ -552,8 +552,8 @@ Obrigado pela preferência! 🙏`
       </div>
 
       {produtoModificador && (
-        <div onClick={() => setProdutoModificador(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(35, 22, 15, .48)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
-          <div onClick={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '18px 18px 12px 12px', padding: 22, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
+        <div onClick={() => setProdutoModificador(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(35, 22, 15, .48)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 460, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 22, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 18 }}>
               <div><span style={{ color: 'var(--accent-primary)', fontSize: 11, fontWeight: 800, letterSpacing: '.08em' }}>PERSONALIZE SEU CAFÉ</span><h2 style={{ margin: '4px 0 0', fontSize: 22 }}>{produtoModificador.nome}</h2></div>
               <button onClick={() => setProdutoModificador(null)} aria-label="Fechar personalização" style={{ border: 0, background: 'transparent', fontSize: 20, cursor: 'pointer' }}>×</button>
