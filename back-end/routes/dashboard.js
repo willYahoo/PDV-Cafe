@@ -30,7 +30,7 @@ router.use((req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const periodos = ['dia', 'semana', 'mes'];
-    const [periodMetrics, openCommands, pedidosHoje, clientesCadastrados, clientesRecentes] = await Promise.all([
+    const [periodMetrics, openCommands, pedidosDia, clientesCadastrados, clientesRecentes] = await Promise.all([
       Promise.all(periodos.map(async (periodo) => {
         const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
@@ -41,14 +41,16 @@ router.get('/', async (req, res) => {
         return { periodo, total, pedidos: pedidos.length, itens, ticketMedio: pedidos.length ? total / pedidos.length : 0, maisVendidos };
       })),
       Comanda.countDocuments({ status: 'aberta' }),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).limit(30).select('numero total status clienteNome createdAt itens'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
     ]);
-    const vendasHoje = pedidosHoje.filter((pedido) => pedido.status !== 'cancelado');
+    const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + Number(item.quantidade || 0), 0), 0);
-    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje, clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal }, atualizadoEm: new Date() });
+    const vendasHojeRecebido = vendasHoje.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
+    const vendasHojePendente = Math.max(0, vendasHojeTotal - vendasHojeRecebido);
+    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, atualizadoEm: new Date() });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 

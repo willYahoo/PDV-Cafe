@@ -83,6 +83,20 @@ router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
+router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order || !['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Este pedido não aceita quitação' });
+    const paid = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
+    const balance = money(order.total - paid);
+    if (balance <= 0) return res.status(400).json({ msg: 'Pedido já está quitado' });
+    order.pagamentos.push({ tipo: 'dinheiro', valorRecebido: balance, dataPagamento: new Date(), quitado: true, observacao: 'Quitação total' });
+    order.status = 'pago';
+    await order.save();
+    res.json(order);
+  } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+
 router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) => {
   const session = await mongoose.startSession();
   try {

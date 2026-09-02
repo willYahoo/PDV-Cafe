@@ -816,7 +816,7 @@ Obrigado! 🙏`
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
                 <option value="pix">🔄 PIX</option>
-                <option value="credito_loja">🏪 Fiado / Crédito Loja</option>
+                <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
                 <option value="cheque">📄 Cheque</option>
@@ -864,7 +864,7 @@ Obrigado! 🙏`
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
                 <option value="pix">🔄 PIX</option>
-                <option value="credito_loja">🏪 Fiado / Crédito Loja</option>
+                <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
                 <option value="cheque">📄 Cheque</option>
