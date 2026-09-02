@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast.jsx';
 
 
 const corCategoria = {
-  'Cafés quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20', border: 'rgba(169,79,43,.3)' },
+  'Bebidas Quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20', border: 'rgba(169,79,43,.3)' },
   'Bebidas geladas': { bg: 'rgba(61,139,140,.14)', txt: '#267477', border: 'rgba(61,139,140,.3)' },
   Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417', border: 'rgba(210,137,48,.3)' },
   Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61', border: 'rgba(190,104,120,.3)' },
@@ -14,18 +14,18 @@ const corCategoria = {
   Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b', border: 'rgba(100,116,139,.25)' }
 };
 
-const grupos = ['Todos', 'Favoritos', 'Cafés quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
+const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
 const favoritos = ['cookie recheado', 'pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
 const grupoProduto = (produto) => {
   const nome = produto.nome.toLowerCase();
-  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Cafés quentes';
+  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas Quentes';
   if (nome.includes('gelad') || nome.includes('suco') || nome.includes('refrigerante')) return 'Bebidas geladas';
   if (nome.includes('doce') || nome.includes('bolo') || nome.includes('torta') || nome.includes('cookie')) return 'Doces';
   if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Salgados') return 'Salgados';
   if (produto.categoria === 'Café da manhã') return 'Café da manhã';
   return 'Outros';
 };
-const precisaModificar = (produto) => grupoProduto(produto) === 'Cafés quentes';
+const precisaModificar = (produto) => grupoProduto(produto) === 'Bebidas Quentes';
 
 
 export default function PDV() {

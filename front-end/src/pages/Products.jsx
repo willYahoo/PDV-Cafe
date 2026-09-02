@@ -3,12 +3,12 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 
-const categorias = ['Cafés quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Grãos e insumos', 'Outros'];
+const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Grãos e insumos', 'Outros'];
 
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Cafés quentes', preco: '', estoque: '', unidadeVenda: 'un', vendidoFracionado: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', estoque: '', unidadeVenda: 'un', vendidoFracionado: false };
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
@@ -248,7 +248,7 @@ export default function Products() {
 
 
 const corCategoria = {
-  'Cafés quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20' },
+  'Bebidas Quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20' },
   'Bebidas geladas': { bg: 'rgba(61,139,140,.14)', txt: '#267477' },
   Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417' },
   Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61' },
