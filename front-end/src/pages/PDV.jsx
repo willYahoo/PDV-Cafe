@@ -156,7 +156,7 @@ export default function PDV() {
         </style>
       </head>
       <body>
-        <div class="center bold" style="font-size:14px;">PDV MERCADO LOCAL</div>
+        <div class="center bold" style="font-size:14px;">PDV CAFETERIA LOCAL</div>
         <div class="center" style="font-size:10px;">Cupom Não Fiscal</div>
         <div class="linha-dupla"></div>
         

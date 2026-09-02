@@ -61,9 +61,9 @@ export default function Login() {
           width: 68, height: 68, borderRadius: 18, margin: '0 auto 16px',
           background: 'var(--accent-light)', color: 'var(--accent-primary)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34
-        }}>🛒</div>
+        }}>☕</div>
 
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>PDV Mercado</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>PDV Cafeteria</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 20px' }}>
           Entre para acessar o sistema
         </p>

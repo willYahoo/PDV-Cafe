@@ -125,7 +125,7 @@ export default function Layout() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22
           }}>🛒</div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>PDV Mercado</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>PDV Cafeteria</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Sistema de Vendas</div>
           </div>
         </div>

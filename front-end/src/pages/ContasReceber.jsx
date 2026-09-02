@@ -245,7 +245,7 @@ export default function ContasReceber() {
       </head>
       <body>
         <div class="center bold" style="font-size:16px;">COMPROVANTE DE QUITAÇÃO</div>
-        <div class="center">PDV Mercado Local</div>
+        <div class="center">PDV Cafeteria Local</div>
         <div class="linha"></div>
         <div><span class="bold">Pedido:</span> #${pedido.numero}</div>
         <div><span class="bold">Cliente:</span> ${pedido.clienteNome}</div>
@@ -303,7 +303,7 @@ export default function ContasReceber() {
         </style>
       </head>
       <body>
-        <div class="center bold" style="font-size:14px;">PDV MERCADO LOCAL</div>
+        <div class="center bold" style="font-size:14px;">PDV CAFETERIA LOCAL</div>
         <div class="center" style="font-size:10px; color:#c2410c; font-weight:bold;">
           ${pedido.status === 'pendente' ? 'PEDIDO PENDENTE' : 'PAGAMENTO PARCIAL'}
         </div>
