@@ -12,6 +12,7 @@ export default function Products() {
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
   const { showToast } = useToast();
 
 
@@ -92,7 +93,8 @@ export default function Products() {
 
 
   const filtrados = produtos.filter(p =>
-    p.nome.toLowerCase().includes(filtro.toLowerCase()) || String(p.codigo).includes(filtro)
+    (categoriaFiltro === 'Todas' || p.categoria === categoriaFiltro) &&
+    (p.nome.toLowerCase().includes(filtro.toLowerCase()) || String(p.codigo).includes(filtro))
   );
 
 
@@ -174,6 +176,9 @@ export default function Products() {
         background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
         borderRadius: 16, padding: 16
       }}>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 4 }}>
+          {['Todas', ...categorias].map(categoria => <button key={categoria} onClick={() => setCategoriaFiltro(categoria)} style={{ flexShrink: 0, minHeight: 40, padding: '8px 13px', borderRadius: 20, border: categoriaFiltro === categoria ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)', background: categoriaFiltro === categoria ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: categoriaFiltro === categoria ? '#fff' : 'var(--text-secondary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{categoria}</button>)}
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             Cadastrados
@@ -187,40 +192,7 @@ export default function Products() {
         </div>
 
 
-        <div style={{ overflowX: 'auto', margin: '0 -16px', padding: '0 16px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {['Código', 'Nome', 'Categoria', 'Preço', 'Estoque', 'Ações'].map(h => (
-                  <th key={h} style={{ padding: '10px 8px', textAlign: 'left', fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtrados.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto cadastrado</td></tr>
-              ) : filtrados.map(p => (
-                <tr key={p._id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                  <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 13 }}>{p.codigo}</td>
-                  <td style={{ padding: '10px 8px', fontWeight: 600, fontSize: 13, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</td>
-                  <td style={{ padding: '10px 8px' }}>
-                    <span style={{
-                      background: (corCategoria[p.categoria] || corCategoria.Outros).bg,
-                      color: (corCategoria[p.categoria] || corCategoria.Outros).txt,
-                      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600
-                    }}>{p.categoria}</span>
-                  </td>
-                  <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, color: 'var(--accent-primary)', fontVariantNumeric: 'tabular-nums' }}>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</td>
-                  <td style={{ padding: '10px 8px', textAlign: 'center', color: p.estoque <= 5 ? 'var(--error-bg)' : 'var(--text-primary)', fontWeight: p.estoque <= 5 ? 700 : 500 }}>{p.estoque}</td>
-                  <td style={{ padding: '10px 8px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => alterar(p)} style={btnTable}>Editar</button>
-                    <button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span></div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} em estoque</small></div><div><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
       </div>
 
 
@@ -231,6 +203,14 @@ export default function Products() {
         @media (min-width: 1024px) {
           .form-grid-prod { grid-template-columns: 1fr 2fr 1fr 1fr 1fr !important; }
         }
+        .product-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+        .product-admin-card { min-height: 150px; display: flex; flex-direction: column; justify-content: space-between; padding: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-tertiary); }
+        .product-admin-card h4 { margin: 12px 0 4px; color: var(--text-primary); font-size: 14px; line-height: 1.3; }
+        .product-code { color: var(--text-secondary); font-family: monospace; font-size: 11px; }
+        .product-admin-footer { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 16px; }
+        .product-admin-footer strong { display: block; color: var(--accent-primary); font-size: 17px; }
+        .product-admin-footer small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
+        .product-admin-footer .low-stock { color: var(--error-bg); font-weight: 700; }
       `}</style>
     </div>
   );

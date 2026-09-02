@@ -34,6 +34,7 @@ export default function PDV() {
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState('');
+  const [clienteNome, setClienteNome] = useState('');
   const [mesa, setMesa] = useState('');
   const [grupoAtivo, setGrupoAtivo] = useState('Todos');
   const [produtoModificador, setProdutoModificador] = useState(null);
@@ -146,12 +147,12 @@ export default function PDV() {
       const { data: comanda } = await api.post('/comandas', {
         mesa: mesa.trim() || 'Balcão',
         clienteId: clienteId || undefined,
-        clienteNome: clienteSelecionado?.nome || 'Cliente não identificado',
+        clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
       });
       for (const item of carrinho) {
         await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade: item.quantidade, modificadores: item.modificadores || [] });
       }
-      setCarrinho([]); setClienteId(''); setMesa('');
+      setCarrinho([]); setClienteId(''); setClienteNome(''); setMesa('');
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
       navigate('/comandas');
     } catch (err) {
@@ -336,6 +337,10 @@ Obrigado pela preferência! 🙏`
                   <option value="">Cliente não identificado</option>
                   {clientes.map(c => <option key={c._id} value={c._id}>{c.nome}</option>)}
                 </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Nome no atendimento</label>
+                <input placeholder="Digite o nome (opcional)" value={clienteNome} onChange={e => setClienteNome(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Mesa / balcão</label>
@@ -625,7 +630,7 @@ Obrigado pela preferência! 🙏`
           .pdv-grid { grid-template-columns: 2fr 1fr !important; }
         }
         @media (min-width: 768px) {
-          .busca-grid { grid-template-columns: 1.4fr 1fr 1fr !important; }
+          .busca-grid { grid-template-columns: 1.3fr 1fr 1.1fr 1fr !important; }
           .pdv-header-desktop { display: block !important; }
         }
         @media (max-width: 767px) {
