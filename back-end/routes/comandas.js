@@ -9,6 +9,23 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+async function estoqueReservado(produtoId, excluirComandaId) {
+  const filtro = { status: 'aberta' };
+  if (excluirComandaId) filtro._id = { $ne: excluirComandaId };
+  const comandas = await Comanda.find(filtro).select('itens');
+  return comandas.reduce((total, comanda) => total + comanda.itens.reduce((soma, item) => String(item.produtoId) === String(produtoId) ? soma + Number(item.quantidade || 0) : soma, 0), 0);
+}
+
+async function validarEstoqueReservado(itens, excluirComandaId) {
+  const totais = new Map();
+  itens.forEach((item) => totais.set(String(item.produtoId), (totais.get(String(item.produtoId)) || 0) + Number(item.quantidade || 0)));
+  for (const [produtoId, quantidade] of totais) {
+    const product = await Product.findById(produtoId);
+    const reservado = await estoqueReservado(produtoId, excluirComandaId);
+    if (!product || reservado + quantidade > product.estoque) throw new Error(`Estoque insuficiente para "${product?.nome || produtoId}"`);
+  }
+}
+
 router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const filter = req.query.status ? { status: req.query.status } : {};
@@ -29,6 +46,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) =>
         : [];
       itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
     }
+    await validarEstoqueReservado(itens);
     const comanda = await Comanda.create({ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, atendente: req.user.username });
     res.status(201).json(comanda);
   } catch (err) { res.status(400).json({ msg: err.message }); }
@@ -41,10 +59,13 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req
     const product = await Product.findById(req.body.produtoId);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantity) || quantity < 0.001) return res.status(400).json({ msg: 'Item inválido' });
-    if (!Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    if (!product.vendidoFracionado && !Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const modificadores = Array.isArray(req.body.modificadores)
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
+    const quantidadeAtual = comanda.itens.reduce((total, item) => String(item.produtoId) === String(product.id) ? total + Number(item.quantidade || 0) : total, 0);
+    const reservado = await estoqueReservado(product.id, comanda.id);
+    if (reservado + quantidadeAtual + quantity > product.estoque) return res.status(400).json({ msg: `Estoque insuficiente para "${product.nome}"` });
     comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
     await comanda.save();
     res.json(comanda);
@@ -59,6 +80,11 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), a
     const item = comanda.itens.id(req.params.itemId);
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (!Number.isFinite(quantity) || quantity < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
+    const product = await Product.findById(item.produtoId);
+    if (product && !product.vendidoFracionado && !Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    const quantidadeAtual = comanda.itens.reduce((total, atual) => String(atual.produtoId) === String(item.produtoId) ? total + Number(atual.quantidade || 0) : total, 0);
+    const reservado = await estoqueReservado(item.produtoId, comanda.id);
+    if (product && reservado + quantidadeAtual - Number(item.quantidade || 0) + quantity > product.estoque) return res.status(400).json({ msg: `Estoque insuficiente para "${product.nome}"` });
     item.quantidade = quantity;
     await comanda.save();
     res.json(comanda);
@@ -104,6 +130,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
     const total = money(subtotal - discount);
     const creditoLoja = metodoPagamento === 'credito_loja';
+    const customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
     const order = new Order({
       itens: comanda.itens,
       subtotal,
@@ -111,6 +138,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       total,
       clienteId: comanda.clienteId,
       clienteNome: comanda.clienteNome,
+      clienteTelefone: customer?.telefone || '',
       atendente: req.user.username,
       comandaId: comanda.id,
       status: creditoLoja ? 'pendente' : 'pago',

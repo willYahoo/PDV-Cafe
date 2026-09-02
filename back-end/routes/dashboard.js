@@ -35,7 +35,7 @@ router.use((req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const periodos = ['dia', 'semana', 'mes'];
-    const [periodMetrics, openCommands, pedidosDia, pedidosMes, clientesCadastrados, clientesRecentes] = await Promise.all([
+    const [periodMetrics, openCommands, pedidosDia, pedidosMes, recebimentosDia, recebimentosMes, clientesCadastrados, clientesRecentes] = await Promise.all([
       Promise.all(periodos.map(async (periodo) => {
         const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
@@ -48,13 +48,15 @@ router.get('/', async (req, res) => {
       Comanda.countDocuments({ status: 'aberta' }),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteNome createdAt itens pagamentos'),
+      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos'),
+      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
     ]);
     const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + Number(item.quantidade || 0), 0), 0);
-    const vendasHojeRecebido = vendasHoje.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
+    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
     const vendasHojePendente = Math.max(0, vendasHojeTotal - vendasHojeRecebido);
     const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
     const pagamentosMes = new Map();
@@ -65,7 +67,6 @@ router.get('/', async (req, res) => {
       if (pedido.clienteNome) clientesMes.add(pedido.clienteNome);
       const dia = new Date(pedido.createdAt).toLocaleDateString('pt-BR');
       vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + Number(pedido.total || 0));
-      (pedido.pagamentos || []).forEach((pagamento) => pagamentosMes.set(pagamento.tipo, (pagamentosMes.get(pagamento.tipo) || 0) + Number(pagamento.valorRecebido || 0)));
       (pedido.itens || []).forEach((item) => {
         const atual = produtosMes.get(item.nome) || { nome: item.nome, quantidade: 0, total: 0 };
         atual.quantidade += Number(item.quantidade || 0);
@@ -73,6 +74,7 @@ router.get('/', async (req, res) => {
         produtosMes.set(item.nome, atual);
       });
     });
+    recebimentosMes.forEach((pedido) => (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => pagamentosMes.set(pagamento.tipo, (pagamentosMes.get(pagamento.tipo) || 0) + Number(pagamento.valorRecebido || 0))));
     const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});

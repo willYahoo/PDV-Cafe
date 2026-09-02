@@ -58,7 +58,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), estoque: parseFloat(form.estoque) || 0, unidadeVenda: 'un', vendidoFracionado: false };
+    const dados = { ...form, preco: parseFloat(form.preco), estoque: parseFloat(form.estoque) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -73,7 +73,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, unidadeVenda: 'un', vendidoFracionado: false });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -155,6 +155,16 @@ export default function Products() {
                 onChange={e => setForm({ ...form, estoque: e.target.value })}
                 style={inputStyle} />
             </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Unidade de venda</label>
+              <select value={form.unidadeVenda} onChange={e => setForm({ ...form, unidadeVenda: e.target.value })} style={inputStyle}>
+                {['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade} value={unidade}>{unidade}</option>)}
+              </select>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
+              <input type="checkbox" checked={form.vendidoFracionado} onChange={e => setForm({ ...form, vendidoFracionado: e.target.checked })} />
+              Permitir venda fracionada
+            </label>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button type="submit" style={{

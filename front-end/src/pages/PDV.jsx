@@ -84,10 +84,11 @@ export default function PDV() {
     const assinatura = modificadoresItem.join('|');
     const existe = carrinho.find(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura);
     const incremento = 1;
-    if (existe && existe.quantidade + incremento > prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
+    const quantidadeProduto = carrinho.filter(i => i.produtoId === prod._id).reduce((total, item) => total + item.quantidade, 0);
+    if (quantidadeProduto + incremento > prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
     if (existe) {
       if (existe.quantidade >= prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
-      setCarrinho(carrinho.map(i => i.produtoId === prod._id ? { ...i, quantidade: Number((i.quantidade + incremento).toFixed(3)) } : i));
+      setCarrinho(carrinho.map(i => i.produtoId === prod._id && (i.modificadores || []).join('|') === assinatura ? { ...i, quantidade: Number((i.quantidade + incremento).toFixed(3)) } : i));
     } else {
       setCarrinho([...carrinho, {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
@@ -119,8 +120,9 @@ export default function PDV() {
     const novos = [...carrinho];
     const prod = produtos.find(p => p._id === novos[idx].produtoId);
     if (qtd < 0.001) return removerItem(idx);
-    if (!Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
-    if (qtd > prod.estoque) return showToast(`Máximo: ${prod.estoque}`, 'warning');
+    if (!prod?.vendidoFracionado && !Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
+    const quantidadeOutrasLinhas = carrinho.reduce((total, item, itemIndex) => itemIndex !== idx && item.produtoId === novos[idx].produtoId ? total + item.quantidade : total, 0);
+    if (quantidadeOutrasLinhas + qtd > prod.estoque) return showToast(`Máximo: ${prod.estoque}`, 'warning');
     novos[idx].quantidade = qtd;
     setCarrinho(novos);
   };
@@ -149,6 +151,7 @@ export default function PDV() {
       const { data: comanda } = await api.post('/comandas', {
         clienteId: clienteId || undefined,
         clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
+        clienteTelefone: clienteSelecionado?.telefone || '',
         itens: carrinho.map((item) => ({
           produtoId: item.produtoId,
           quantidade: Number(item.quantidade),
@@ -481,11 +484,11 @@ Obrigado pela preferência! 🙏`
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
-                            <button onClick={() => alterarQtd(i, item.quantidade - 1)} style={{
+                            <button onClick={() => alterarQtd(i, item.quantidade - (prod?.vendidoFracionado ? 0.001 : 1))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>−</button>
-                            <input type="number" min={1} step={1} value={item.quantidade}
+                            <input type="number" min={prod?.vendidoFracionado ? 0.001 : 1} step={prod?.vendidoFracionado ? 0.001 : 1} value={item.quantidade}
                               onChange={e => alterarQtd(i, Number(e.target.value))}
                               style={{
                                 width: 48, textAlign: 'center', border: 'none',
@@ -494,7 +497,7 @@ Obrigado pela preferência! 🙏`
                                 padding: '8px 4px', fontSize: 15, fontWeight: 700,
                                 background: 'var(--input-bg)', color: 'var(--input-text)'
                               }} />
-                            <button onClick={() => alterarQtd(i, item.quantidade + 1)} style={{
+                            <button onClick={() => alterarQtd(i, item.quantidade + (prod?.vendidoFracionado ? 0.001 : 1))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>+</button>

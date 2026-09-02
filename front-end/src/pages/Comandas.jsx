@@ -149,6 +149,8 @@ export default function Comandas() {
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir comanda', 'error'); }
   };
 
+  const produtoSelecionado = products.find((product) => product._id === productId);
+
   const addItem = async (event) => {
     event.preventDefault();
     if (!selected || !productId) return;
@@ -213,7 +215,7 @@ export default function Comandas() {
             <h2 style={{ marginTop: 0 }}>Comanda #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             <form onSubmit={addItem} className="comandas-add-form">
               <select className="comandas-field" required value={productId} onChange={(e) => setProductId(e.target.value)}><option value="">Adicionar produto…</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}</option>)}</select>
-              <input className="comandas-field quantity-field" required type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <input className="comandas-field quantity-field" required type="number" min={produtoSelecionado?.vendidoFracionado ? '0.001' : '1'} step={produtoSelecionado?.vendidoFracionado ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
               <button type="submit" className="comandas-secondary-button">Adicionar</button>
             </form>
             {(selected.itens || []).map((item) => <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}><span><b>{item.nome}</b><br /><small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>{item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}</span><span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`}>×</button></span></div>)}

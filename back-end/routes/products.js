@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const Product = require('../models/Product');
 
 const router = express.Router();
-const units = ['un'];
+const units = ['un', 'kg', 'g', 'l', 'ml'];
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const antesDasOito = () => new Date().getHours() < 8;
 const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()];
@@ -35,7 +35,7 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     const estoque = Number(data.estoque) || 0;
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), unidadeVenda: 'un', vendidoFracionado: false, createdBy: req.user.id });
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
@@ -56,8 +56,6 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
       fields.estoqueInicialDia = Number(data.estoque);
       fields.estoqueInicialData = dataLocal();
     }
-    fields.unidadeVenda = 'un';
-    fields.vendidoFracionado = false;
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
     res.json(product);
