@@ -51,22 +51,22 @@ export default function Comandas() {
     catch (error) { showToast(error.response?.data?.msg || 'Erro ao fechar comanda', 'error'); }
   };
 
-  return <div>
-    <div style={{ marginBottom: 16 }}><h1 style={{ margin: 0, fontSize: 22 }}>Comandas</h1><p style={{ color: 'var(--text-secondary)' }}>Abra mesas, lance consumos e feche no caixa.</p></div>
-    <form onSubmit={create} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, padding: 16, border: '1px solid var(--border-color)', borderRadius: 14, marginBottom: 16 }}>
+  return <div className="comandas-page">
+    <div className="page-heading"><h1>☕ Comandas</h1><p>Abra mesas, lance consumos e feche no caixa.</p></div>
+    <form onSubmit={create} className="comandas-open-form">
       <input placeholder="Mesa / balcão" value={newCommand.mesa} onChange={(e) => setNewCommand({ ...newCommand, mesa: e.target.value })} />
       <input placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
       <input placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
       <button type="submit">Abrir comanda</button>
     </form>
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(300px, 2fr)', gap: 16 }}>
-      <section style={{ border: '1px solid var(--border-color)', borderRadius: 14, padding: 12 }}>
-        <strong>Em aberto ({comandas.length})</strong>
+    <div className="comandas-columns">
+      <section className="comandas-card comandas-list-card">
+        <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
         {comandas.map((command) => <button key={command._id} onClick={() => setSelected(command)} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
           <b>#{command.numero}</b> {command.mesa && `• ${command.mesa}`}<br /><small>{command.clienteNome} · {command.itens.length} itens</small>
         </button>)}
       </section>
-      <section style={{ border: '1px solid var(--border-color)', borderRadius: 14, padding: 16 }}>
+      <section className="comandas-card comandas-detail-card">
         {!selected ? <p>Selecione ou abra uma comanda.</p> : <><h2 style={{ marginTop: 0 }}>Comanda #{selected.numero} {selected.mesa && `— ${selected.mesa}`}</h2>
           <form onSubmit={addItem} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             <select required value={productId} onChange={(e) => setProductId(e.target.value)} style={{ flex: 1 }}><option value="">Adicionar produto…</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}/{product.unidadeVenda || 'un'}</option>)}</select>
@@ -78,5 +78,21 @@ export default function Comandas() {
         </>}
       </section>
     </div>
+    <style>{`
+      .page-heading { margin-bottom: 20px; }
+      .page-heading h1 { margin: 0 0 4px; font-size: 22px; color: var(--text-primary); }
+      .page-heading p, .comandas-card-heading p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+      .comandas-open-form, .comandas-card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 16px; box-shadow: var(--shadow-sm); }
+      .comandas-open-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding: 18px; margin-bottom: 16px; }
+      .comandas-open-form button { min-height: 48px; border: 0; border-radius: 10px; background: var(--accent-primary); color: #fff; font-weight: 800; cursor: pointer; }
+      .comandas-columns { display: grid; grid-template-columns: minmax(230px, .85fr) minmax(320px, 1.6fr); gap: 16px; }
+      .comandas-card { padding: 18px; }
+      .comandas-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+      .comandas-card-heading h2 { margin: 0; font-size: 16px; color: var(--text-primary); }
+      .comandas-count { min-width: 30px; padding: 5px 9px; border-radius: 20px; background: var(--accent-light); color: var(--accent-primary); font-weight: 800; text-align: center; }
+      .comandas-list-card > button { background: var(--bg-tertiary) !important; border-radius: 10px !important; min-height: 58px; }
+      @media (max-width: 760px) { .comandas-columns { grid-template-columns: 1fr; } .comandas-detail-card { min-width: 0; } }
+      @media (max-width: 520px) { .comandas-open-form, .comandas-card { padding: 14px; } }
+    `}</style>
   </div>;
 }

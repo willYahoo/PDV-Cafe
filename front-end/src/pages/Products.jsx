@@ -3,12 +3,12 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 
-const categorias = ['Alimentos', 'Bebidas', 'Limpeza', 'Higiene', 'Hortifruti', 'Padaria', 'Outros'];
+const categorias = ['Cafés quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Grãos e insumos', 'Outros'];
 
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas', preco: '', estoque: '', unidadeVenda: 'un', vendidoFracionado: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Cafés quentes', preco: '', estoque: '', unidadeVenda: 'un', vendidoFracionado: false };
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
@@ -248,12 +248,12 @@ export default function Products() {
 
 
 const corCategoria = {
-  Alimentos: { bg: 'rgba(234,88,12,.12)', txt: '#ea580c' },
-  Bebidas: { bg: 'rgba(37,99,171,.12)', txt: '#2563ab' },
-  Limpeza: { bg: 'rgba(13,148,136,.12)', txt: '#0d9488' },
-  Higiene: { bg: 'rgba(189,49,147,.12)', txt: '#bd3193' },
-  Hortifruti: { bg: 'rgba(22,163,74,.12)', txt: '#16a34a' },
-  Padaria: { bg: 'rgba(180,83,9,.12)', txt: '#b45309' },
+  'Cafés quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20' },
+  'Bebidas geladas': { bg: 'rgba(61,139,140,.14)', txt: '#267477' },
+  Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417' },
+  Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61' },
+  'Café da manhã': { bg: 'rgba(126,157,107,.16)', txt: '#547642' },
+  'Grãos e insumos': { bg: 'rgba(117,93,69,.14)', txt: '#73583f' },
   Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b' }
 };
 

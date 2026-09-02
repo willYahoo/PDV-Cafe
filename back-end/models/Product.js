@@ -17,7 +17,7 @@ const ProductSchema = new mongoose.Schema({
   categoria: {
     type: String,
     required: true,
-    enum: ['Alimentos', 'Bebidas', 'Limpeza', 'Higiene', 'Hortifruti', 'Padaria', 'Outros'],
+    enum: ['Cafés quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Grãos e insumos', 'Outros'],
     default: 'Outros',
   },
   unidadeVenda: {

@@ -5,26 +5,27 @@ import { useToast } from '../components/Toast.jsx';
 
 
 const corCategoria = {
-  Alimentos: { bg: 'rgba(234,88,12,.12)', txt: '#ea580c', border: 'rgba(234,88,12,.25)' },
-  Bebidas: { bg: 'rgba(37,99,171,.12)', txt: '#2563ab', border: 'rgba(37,99,171,.25)' },
-  Limpeza: { bg: 'rgba(13,148,136,.12)', txt: '#0d9488', border: 'rgba(13,148,136,.25)' },
-  Higiene: { bg: 'rgba(189,49,147,.12)', txt: '#bd3193', border: 'rgba(189,49,147,.25)' },
-  Hortifruti: { bg: 'rgba(22,163,74,.12)', txt: '#16a34a', border: 'rgba(22,163,74,.25)' },
-  Padaria: { bg: 'rgba(180,83,9,.12)', txt: '#b45309', border: 'rgba(180,83,9,.25)' },
+  'Cafés quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20', border: 'rgba(169,79,43,.3)' },
+  'Bebidas geladas': { bg: 'rgba(61,139,140,.14)', txt: '#267477', border: 'rgba(61,139,140,.3)' },
+  Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417', border: 'rgba(210,137,48,.3)' },
+  Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61', border: 'rgba(190,104,120,.3)' },
+  'Café da manhã': { bg: 'rgba(126,157,107,.16)', txt: '#547642', border: 'rgba(126,157,107,.3)' },
+  'Grãos e insumos': { bg: 'rgba(117,93,69,.14)', txt: '#73583f', border: 'rgba(117,93,69,.3)' },
   Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b', border: 'rgba(100,116,139,.25)' }
 };
 
-const grupos = ['Todos', 'Favoritos', 'Bebidas quentes', 'Salgados', 'Doces', 'Bebidas geladas'];
+const grupos = ['Todos', 'Favoritos', 'Cafés quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
 const favoritos = ['pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
 const grupoProduto = (produto) => {
   const nome = produto.nome.toLowerCase();
-  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas quentes';
+  if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Cafés quentes';
   if (nome.includes('gelad') || nome.includes('suco') || nome.includes('refrigerante')) return 'Bebidas geladas';
   if (nome.includes('doce') || nome.includes('bolo') || nome.includes('torta') || nome.includes('cookie')) return 'Doces';
-  if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Padaria') return 'Salgados';
+  if (nome.includes('pão') || nome.includes('salgad') || nome.includes('croissant') || produto.categoria === 'Salgados') return 'Salgados';
+  if (produto.categoria === 'Café da manhã') return 'Café da manhã';
   return 'Outros';
 };
-const precisaModificar = (produto) => grupoProduto(produto) === 'Bebidas quentes';
+const precisaModificar = (produto) => grupoProduto(produto) === 'Cafés quentes';
 
 
 export default function PDV() {
