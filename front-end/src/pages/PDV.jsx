@@ -45,13 +45,15 @@ export default function PDV() {
   const adicionarItem = (prod) => {
     if (prod.estoque <= 0) return showToast('Produto sem estoque!', 'error');
     const existe = carrinho.find(i => i.produtoId === prod._id);
+    const incremento = prod.vendidoFracionado ? 0.001 : 1;
+    if (existe && existe.quantidade + incremento > prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
     if (existe) {
       if (existe.quantidade >= prod.estoque) return showToast('Estoque máximo atingido!', 'warning');
-      setCarrinho(carrinho.map(i => i.produtoId === prod._id ? { ...i, quantidade: i.quantidade + 1 } : i));
+      setCarrinho(carrinho.map(i => i.produtoId === prod._id ? { ...i, quantidade: Number((i.quantidade + incremento).toFixed(3)) } : i));
     } else {
       setCarrinho([...carrinho, {
         produtoId: prod._id, codigo: prod.codigo, nome: prod.nome,
-        precoUnitario: prod.preco, quantidade: 1
+        precoUnitario: prod.preco, quantidade: incremento, unidadeVenda: prod.unidadeVenda || 'un', vendidoFracionado: Boolean(prod.vendidoFracionado)
       }]);
     }
   };
@@ -60,7 +62,8 @@ export default function PDV() {
   const alterarQtd = (idx, qtd) => {
     const novos = [...carrinho];
     const prod = produtos.find(p => p._id === novos[idx].produtoId);
-    if (qtd < 1) return removerItem(idx);
+    if (qtd < 0.001) return removerItem(idx);
+    if (!prod.vendidoFracionado && !Number.isInteger(qtd)) return showToast('Este produto é vendido por unidade', 'warning');
     if (qtd > prod.estoque) return showToast(`Máximo: ${prod.estoque}`, 'warning');
     novos[idx].quantidade = qtd;
     setCarrinho(novos);
@@ -402,12 +405,12 @@ Obrigado pela preferência! 🙏`
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
-                            <button onClick={() => alterarQtd(i, item.quantidade - 1)} style={{
+                            <button onClick={() => alterarQtd(i, item.quantidade - (item.vendidoFracionado ? 0.001 : 1))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>−</button>
-                            <input type="number" min={1} value={item.quantidade}
-                              onChange={e => alterarQtd(i, parseInt(e.target.value))}
+                            <input type="number" min={0.001} step={item.vendidoFracionado ? 0.001 : 1} value={item.quantidade}
+                              onChange={e => alterarQtd(i, Number(e.target.value))}
                               style={{
                                 width: 48, textAlign: 'center', border: 'none',
                                 borderLeft: '1px solid var(--border-color)',
@@ -415,7 +418,7 @@ Obrigado pela preferência! 🙏`
                                 padding: '8px 4px', fontSize: 15, fontWeight: 700,
                                 background: 'var(--input-bg)', color: 'var(--input-text)'
                               }} />
-                            <button onClick={() => alterarQtd(i, item.quantidade + 1)} style={{
+                            <button onClick={() => alterarQtd(i, item.quantidade + (item.vendidoFracionado ? 0.001 : 1))} style={{
                               width: 40, height: 40, background: 'transparent', border: 'none',
                               cursor: 'pointer', fontSize: 18, fontWeight: 700, color: 'var(--text-secondary)'
                             }}>+</button>
