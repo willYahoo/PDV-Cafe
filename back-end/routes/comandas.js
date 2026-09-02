@@ -18,7 +18,7 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const comanda = await Comanda.create({ mesa: req.body.mesa, clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, atendente: req.user.username });
+    const comanda = await Comanda.create({ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, atendente: req.user.username });
     res.status(201).json(comanda);
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });

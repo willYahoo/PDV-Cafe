@@ -16,7 +16,6 @@ const corCategoria = {
 
 const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
 const favoritos = ['cookie recheado', 'pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
-const locaisAtendimento = ['Balcão', ...Array.from({ length: 12 }, (_, indice) => `Mesa ${indice + 1}`)];
 const grupoProduto = (produto) => {
   const nome = produto.nome.toLowerCase();
   if (nome.includes('cappuccino') || nome.includes('café') || nome.includes('cafe') || nome.includes('espresso') || nome.includes('expresso') || nome.includes('filtro')) return 'Bebidas Quentes';
@@ -36,7 +35,6 @@ export default function PDV() {
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState('');
   const [clienteNome, setClienteNome] = useState('');
-  const [mesa, setMesa] = useState('');
   const [grupoAtivo, setGrupoAtivo] = useState('Todos');
   const [produtoModificador, setProdutoModificador] = useState(null);
   const [modificadores, setModificadores] = useState({ tamanho: 'Médio', leite: 'Integral', acompanhamentos: [] });
@@ -146,14 +144,13 @@ export default function PDV() {
 
     try {
       const { data: comanda } = await api.post('/comandas', {
-        mesa: mesa.trim() || 'Balcão',
         clienteId: clienteId || undefined,
         clienteNome: clienteSelecionado?.nome || clienteNome.trim() || 'Cliente não identificado',
       });
       for (const item of carrinho) {
         await api.post(`/comandas/${comanda._id}/itens`, { produtoId: item.produtoId, quantidade: item.quantidade, modificadores: item.modificadores || [] });
       }
-      setCarrinho([]); setClienteId(''); setClienteNome(''); setMesa('');
+      setCarrinho([]); setClienteId(''); setClienteNome('');
       showToast(`Comanda #${comanda.numero} aberta`, 'success');
       navigate('/comandas');
     } catch (err) {
@@ -301,7 +298,7 @@ Obrigado pela preferência! 🙏`
       {/* Cabeçalho PDV */}
       <div className="pdv-header-desktop" style={{ marginBottom: 16 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>☕ Atendimento</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Monte o pedido e abra uma comanda para a mesa ou balcão</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Monte o pedido e abra uma comanda.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="pdv-grid">
         {/* COLUNA PRODUTOS */}
@@ -342,21 +339,6 @@ Obrigado pela preferência! 🙏`
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Nome no atendimento</label>
                 <input placeholder="Digite o nome (opcional)" value={clienteNome} onChange={e => setClienteNome(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48 }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>Mesa / balcão</label>
-                <select
-                  required value={mesa}
-                  onChange={e => setMesa(e.target.value)}
-                  style={{
-                    width: '100%', padding: '12px 14px', border: '1.5px solid var(--border-color)',
-                    borderRadius: 10, fontSize: 16, boxSizing: 'border-box',
-                    outline: 'none', background: 'var(--input-bg)', color: 'var(--input-text)', minHeight: 48
-                  }}
-                >
-                  <option value="">Selecione o local</option>
-                  {locaisAtendimento.map(local => <option key={local} value={local}>{local}</option>)}
-                </select>
               </div>
             </div>
           </div>

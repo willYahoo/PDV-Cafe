@@ -4,13 +4,11 @@ import { useToast } from '../components/Toast.jsx';
 
 const formatMoney = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const formatQuantity = (item) => `${Number(item.quantidade).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} ${item.unidadeVenda || 'un'}`;
-const locaisAtendimento = ['Balcão', ...Array.from({ length: 12 }, (_, indice) => `Mesa ${indice + 1}`)];
-
 export default function Comandas() {
   const [comandas, setComandas] = useState([]);
   const [products, setProducts] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [newCommand, setNewCommand] = useState({ mesa: '', clienteNome: '', observacao: '' });
+  const [newCommand, setNewCommand] = useState({ clienteNome: '', observacao: '' });
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [discount, setDiscount] = useState('0');
@@ -34,7 +32,7 @@ export default function Comandas() {
     event.preventDefault();
     try {
       const { data } = await api.post('/comandas', newCommand);
-      setNewCommand({ mesa: '', clienteNome: '', observacao: '' }); setSelected(data); showToast('Comanda aberta', 'success'); load();
+      setNewCommand({ clienteNome: '', observacao: '' }); setSelected(data); showToast('Comanda aberta', 'success'); load();
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir comanda', 'error'); }
   };
   const addItem = async (event) => {
@@ -57,9 +55,8 @@ export default function Comandas() {
   };
 
   return <div className="comandas-page">
-    <div className="page-heading"><h1>☕ Comandas</h1><p>Abra mesas, lance consumos e feche no caixa.</p></div>
+    <div className="page-heading"><h1>☕ Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div>
     <form onSubmit={create} className="comandas-open-form">
-      <select className="comandas-field" value={newCommand.mesa} onChange={(e) => setNewCommand({ ...newCommand, mesa: e.target.value })} required aria-label="Mesa ou balcão"><option value="">Selecione o local</option>{locaisAtendimento.map(local => <option key={local} value={local}>{local}</option>)}</select>
       <input className="comandas-field" placeholder="Nome do cliente" value={newCommand.clienteNome} onChange={(e) => setNewCommand({ ...newCommand, clienteNome: e.target.value })} />
       <input className="comandas-field" placeholder="Observação" value={newCommand.observacao} onChange={(e) => setNewCommand({ ...newCommand, observacao: e.target.value })} />
       <button type="submit">Abrir comanda</button>
@@ -69,11 +66,11 @@ export default function Comandas() {
         <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
         <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
         {comandas.map((command) => <button className="comanda-select-button" key={command._id} onClick={() => setSelected(command)} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
-          <b>#{command.numero}</b> {command.mesa && `• ${command.mesa}`}<br /><small>{command.clienteNome} · {command.itens.length} itens</small>
+          <b>#{command.numero}</b><br /><small>{command.clienteNome} · {command.itens.length} itens</small>
         </button>)}
       </section>
       <section className="comandas-card comandas-detail-card">
-        {!selected ? <p>Selecione ou abra uma comanda.</p> : <><h2 style={{ marginTop: 0 }}>Comanda #{selected.numero} {selected.mesa && `— ${selected.mesa}`}</h2>
+        {!selected ? <p>Selecione ou abra uma comanda.</p> : <><h2 style={{ marginTop: 0 }}>Comanda #{selected.numero}</h2>
           <form onSubmit={addItem} className="comandas-add-form">
             <select className="comandas-field" required value={productId} onChange={(e) => setProductId(e.target.value)}><option value="">Adicionar produto…</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}</option>)}</select>
             <input className="comandas-field quantity-field" required type="number" min="1" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
