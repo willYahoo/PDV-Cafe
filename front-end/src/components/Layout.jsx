@@ -124,11 +124,7 @@ export default function Layout() {
           ========================================== */}
       <aside id="sidebar-desktop">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12,
-            background: 'var(--brand-cream)', color: 'var(--brand-brown)', border: '1px solid var(--brand-gold)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22
-          }}>☕</div>
+          <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--brand-gold)' }} />
           <div>
             <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: 17, color: 'var(--brand-brown)' }}>Sabor de Abraço</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Cafeteria e confeitaria</div>

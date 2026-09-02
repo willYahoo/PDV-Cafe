@@ -1,15 +1,22 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext.jsx';
 import { ThemeContext } from '../context/ThemeContext.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 export default function Login() {
+  const imagensMarca = ['/Abraco5.png', '/Abraco10.png', '/Abraco11.png'];
   const [form, setForm] = useState({ username: '', password: '' });
+  const [imagemAtiva, setImagemAtiva] = useState(0);
   const { login, user } = useContext(AuthContext);
   const { isDark, toggleTheme } = useContext(ThemeContext);
   const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const intervalo = window.setInterval(() => setImagemAtiva((atual) => (atual + 1) % imagensMarca.length), 5000);
+    return () => window.clearInterval(intervalo);
+  }, [imagensMarca.length]);
 
   if (user) return <Navigate to="/pdv" />;
 
@@ -28,7 +35,7 @@ export default function Login() {
   };
 
   return (
-    <div style={{
+    <div className="login-shell" style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: isDark
         ? 'linear-gradient(160deg, var(--bg-primary) 0%, var(--bg-secondary) 55%, var(--bg-tertiary) 100%)'
@@ -36,7 +43,16 @@ export default function Login() {
       padding: 20, fontFamily: 'var(--font-body)',
       transition: 'background 0.3s ease'
     }}>
-      <div style={{
+      <div className="login-layout" style={{
+        display: 'grid', gridTemplateColumns: 'minmax(280px, .95fr) minmax(340px, 420px)',
+        gap: 24, alignItems: 'stretch', width: '100%', maxWidth: 900,
+      }}>
+        <div className="login-brand-panel" style={{ position: 'relative', minHeight: 560, borderRadius: 20, overflow: 'hidden', boxShadow: 'var(--shadow-lg)', background: 'var(--brand-brown)' }}>
+          {imagensMarca.map((imagem, indice) => <img key={imagem} src={imagem} alt="Atmosfera do Sabor de Abraço" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: imagemAtiva === indice ? 1 : 0, transition: 'opacity .8s ease' }} />)}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(48, 28, 19, .08), rgba(48, 28, 19, .78))' }} />
+          <div style={{ position: 'absolute', left: 26, right: 26, bottom: 26, color: '#fff8ed' }}><span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.1em' }}>CAFÉS ESPECIAIS · CONFEITARIA AFETIVA</span><h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 32, margin: '8px 0 4px', color: '#fff8ed' }}>Um abraço em cada pausa.</h2><p style={{ margin: 0, fontSize: 13, opacity: .9 }}>Atenda com calma. A casa começa no primeiro carinho.</p><div style={{ display: 'flex', gap: 6, marginTop: 18 }}>{imagensMarca.map((imagem, indice) => <button key={imagem} type="button" onClick={() => setImagemAtiva(indice)} aria-label={`Ver imagem ${indice + 1}`} style={{ width: 28, height: 6, minHeight: 6, padding: 0, border: 0, borderRadius: 4, background: imagemAtiva === indice ? '#fff8ed' : 'rgba(255,248,237,.45)', cursor: 'pointer' }} />)}</div></div>
+        </div>
+        <div style={{
         background: 'var(--bg-secondary)', padding: '36px 28px', borderRadius: 20,
         boxShadow: 'var(--shadow-lg)', width: '100%', maxWidth: 380,
         textAlign: 'center', color: 'var(--text-primary)'
@@ -57,7 +73,7 @@ export default function Login() {
           </button>
         </div>
 
-        <div style={{ width: 82, height: 82, borderRadius: '50%', margin: '0 auto 16px', background: 'var(--brand-cream)', color: 'var(--brand-brown)', border: '1px solid var(--brand-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, boxShadow: 'var(--shadow-sm)' }}>☕</div>
+        <img src="/Abraco1.png" alt="Sabor de Abraço" style={{ width: 112, height: 112, objectFit: 'cover', borderRadius: '50%', margin: '0 auto 12px', display: 'block', boxShadow: 'var(--shadow-sm)' }} />
 
         <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28, fontWeight: 700, margin: '0 0 4px', color: 'var(--brand-brown)' }}>Sabor de Abraço</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 20px' }}>
@@ -109,7 +125,9 @@ export default function Login() {
               {loading ? 'Entrando...' : 'Entrar no Sistema'}
             </button>
           </form>
+        </div>
       </div>
+      <style>{`@media (max-width: 760px) { .login-shell { align-items: flex-start !important; padding: 18px !important; } .login-layout { display: block !important; max-width: 420px !important; } .login-brand-panel { min-height: 220px !important; margin-bottom: 14px; } .login-brand-panel h2 { font-size: 24px !important; } .login-layout > div:last-child { max-width: none !important; padding: 28px 22px !important; } }`}</style>
     </div>
   );
 }
