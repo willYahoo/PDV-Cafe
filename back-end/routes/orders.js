@@ -73,11 +73,11 @@ router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order || !['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Este pedido não aceita novos pagamentos' });
     const paid = order.pagamentos.reduce((sum, payment) => sum + (payment.valorRecebido || 0), 0);
+    const balance = money(order.total - paid);
     const value = money(req.body.valorRecebido);
-    if (value <= 0 || value > money(order.total - paid)) return res.status(400).json({ msg: 'Valor de pagamento inválido' });
-    const settled = money(paid + value) >= order.total;
-    order.pagamentos.push({ tipo: req.body.tipo || 'dinheiro', valorRecebido: value, dataPagamento: new Date(), quitado: settled, observacao: req.body.observacao });
-    order.status = settled ? 'pago' : 'parcial';
+    if (value !== balance || balance <= 0) return res.status(400).json({ msg: 'O recebimento deve quitar o saldo total do pedido' });
+    order.pagamentos.push({ tipo: req.body.tipo || 'dinheiro', valorRecebido: balance, dataPagamento: new Date(), quitado: true, observacao: req.body.observacao });
+    order.status = 'pago';
     await order.save();
     res.json(order);
   } catch (err) { res.status(400).json({ msg: err.message }); }

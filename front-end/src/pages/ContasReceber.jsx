@@ -241,7 +241,16 @@ export default function ContasReceber() {
 
   const registrarPagamento = async () => {
     try {
-      const { data: pedidoAtualizado } = await api.patch(`/orders/${pagamentoModal._id}/pagar`, formPagamento);
+      const valorTotal = Number(pagamentoModal?.total) || 0;
+      const valorPago = Array.isArray(pagamentoModal?.pagamentos)
+        ? pagamentoModal.pagamentos.reduce((soma, pagamento) => soma + (Number(pagamento?.valorRecebido) || 0), 0)
+        : 0;
+      const valorAReceber = Math.max(0, valorTotal - valorPago).toFixed(2);
+      const { data: pedidoAtualizado } = await api.patch(`/orders/${pagamentoModal._id}/pagar`, {
+        tipo: formPagamento.tipo,
+        valorRecebido: valorAReceber,
+        observacao: formPagamento.observacao,
+      });
       showToast('✅ Pagamento registrado!', 'success');
       setPagamentoModal(null);
       setPagamentoConcluido(pedidoAtualizado);
@@ -872,11 +881,10 @@ Obrigado! 🙏`
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor Recebido (R$)</label>
-              <input type="number" step="0.01" min="0" autoFocus
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor total para quitar (R$)</label>
+              <input type="text" readOnly autoFocus
                 value={formPagamento.valorRecebido}
-                onChange={e => setFormPagamento({...formPagamento, valorRecebido: e.target.value})}
-                style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 16 }} />
+                style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 16, background: 'var(--bg-tertiary)', fontWeight: 700 }} />
             </div>
 
             <div style={{ marginBottom: 16 }}>
@@ -893,7 +901,7 @@ Obrigado! 🙏`
               }}>Cancelar</button>
               <button onClick={registrarPagamento} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
-              }}>Confirmar</button>
+              }}>Quitar Total</button>
             </div>
           </div>
         </div>

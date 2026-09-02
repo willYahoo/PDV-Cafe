@@ -154,13 +154,13 @@ export default function Layout() {
             <span style={{ fontSize: 18, flexShrink: 0 }}>📦</span>
             <span style={{ whiteSpace: 'nowrap' }}>Produtos</span>
           </Link>}
-          {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'nav-link active' : 'nav-link'}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>💰</span>
-            <span>A Receber</span>
-          </Link>}
           {user?.role === 'admin' && <Link to="/clientes" className={ativoClientes ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>👤</span>
             <span style={{ whiteSpace: 'nowrap' }}>Clientes</span>
+          </Link>}
+          {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'nav-link active' : 'nav-link'}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>💰</span>
+            <span>A Receber</span>
           </Link>}
           {user?.role === 'admin' && (
             <Link to="/usuarios" className={ativoUsuarios ? 'nav-link active' : 'nav-link'}>
@@ -219,13 +219,13 @@ export default function Layout() {
           <span style={{ fontSize: 20, lineHeight: 1 }}>📦</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Produtos</span>
         </Link>}
-        {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'bottom-link active' : 'bottom-link'}>
-          <span style={{ fontSize: 20, lineHeight: 1 }}>💰</span>
-          <span style={{ fontSize: '10px' }}>A Receber</span>
-        </Link>}
         {user?.role === 'admin' && <Link to="/clientes" className={ativoClientes ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>👤</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Clientes</span>
+        </Link>}
+        {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'bottom-link active' : 'bottom-link'}>
+          <span style={{ fontSize: 20, lineHeight: 1 }}>💰</span>
+          <span style={{ fontSize: '10px' }}>A Receber</span>
         </Link>}
         {user?.role === 'admin' && (
           <Link to="/usuarios" className={ativoUsuarios ? 'bottom-link active' : 'bottom-link'}>
