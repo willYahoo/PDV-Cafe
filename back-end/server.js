@@ -24,7 +24,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'x-pdv-role'],
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
