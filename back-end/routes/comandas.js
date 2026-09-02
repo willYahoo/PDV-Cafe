@@ -92,7 +92,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
     const total = money(subtotal - discount);
-    const order = new Order({ itens: comanda.itens, subtotal, desconto: discount, total, clienteNome: comanda.clienteNome, atendente: req.user.username, comandaId: comanda.id, pagamentos: [{ tipo: metodoPagamento, valorRecebido: total, dataPagamento: new Date(), quitado: true }] });
+    const order = new Order({ itens: comanda.itens, subtotal, desconto: discount, total, clienteNome: comanda.clienteNome, atendente: req.user.username, comandaId: comanda.id, status: 'pago', pagamentos: [{ tipo: metodoPagamento, valorRecebido: total, dataPagamento: new Date(), quitado: true }] });
     await order.save({ session });
     if (comanda.clienteId) await Customer.findByIdAndUpdate(comanda.clienteId, { $inc: { cafesFidelidade: 1 } }, { session });
     comanda.status = 'fechada'; comanda.pedidoId = order.id;

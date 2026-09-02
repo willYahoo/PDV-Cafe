@@ -50,7 +50,8 @@ const orderSchema = new mongoose.Schema({
   pagamentos: [pagamentoSchema],
   
   atendente: { type: String, required: true },
-  observacao: String
+  observacao: String,
+  comandaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comanda' },
 }, { timestamps: true });
 
 // Gerar número do pedido automaticamente
