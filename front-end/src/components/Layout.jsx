@@ -144,7 +144,7 @@ export default function Layout() {
         <nav style={{ flex: 1, overflowY: 'auto' }}>
           <Link to="/pdv" className={ativoPDV ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
-            <span style={{ whiteSpace: 'nowrap' }}>PDV</span>
+            <span style={{ whiteSpace: 'nowrap' }}>Novo Pedido</span>
           </Link>
           <Link to="/comandas" className={ativoComandas ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
@@ -209,7 +209,7 @@ export default function Layout() {
       <nav id="bottom-nav">
         <Link to="/pdv" className={ativoPDV ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
-          <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>PDV</span>
+          <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Novo Pedido</span>
         </Link>
         <Link to="/comandas" className={ativoComandas ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
