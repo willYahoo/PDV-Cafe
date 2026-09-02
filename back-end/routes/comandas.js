@@ -9,21 +9,21 @@ const auth = require('../middleware/auth');
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const filter = req.query.status ? { status: req.query.status } : {};
     res.json(await Comanda.find(filter).sort({ createdAt: -1 }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const comanda = await Comanda.create({ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, atendente: req.user.username });
     res.status(201).json(comanda);
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.post('/:id/itens', auth, async (req, res) => {
+router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const comanda = await Comanda.findById(req.params.id);
     const quantity = Number(req.body.quantidade);
@@ -40,7 +40,7 @@ router.post('/:id/itens', auth, async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.patch('/:id/itens/:itemId', auth, async (req, res) => {
+router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const comanda = await Comanda.findById(req.params.id);
     const quantity = Number(req.body.quantidade);
@@ -54,7 +54,7 @@ router.patch('/:id/itens/:itemId', auth, async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.delete('/:id/itens/:itemId', auth, async (req, res) => {
+router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const comanda = await Comanda.findById(req.params.id);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
@@ -64,7 +64,7 @@ router.delete('/:id/itens/:itemId', auth, async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.patch('/:id/cancelar', auth, async (req, res) => {
+router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const comanda = await Comanda.findById(req.params.id);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
@@ -74,7 +74,7 @@ router.patch('/:id/cancelar', auth, async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.post('/:id/fechar', auth, async (req, res) => {
+router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();

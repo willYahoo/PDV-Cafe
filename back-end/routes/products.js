@@ -7,7 +7,7 @@ const router = express.Router();
 const units = ['un'];
 const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()];
 
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const { search, categoria } = req.query;
     const query = {};
@@ -17,7 +17,7 @@ router.get('/', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
@@ -25,7 +25,7 @@ router.get('/:id', auth, async (req, res) => {
   } catch (_) { res.status(404).json({ msg: 'Produto não encontrado' }); }
 });
 
-router.post('/', auth, validations, async (req, res) => {
+router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -37,7 +37,7 @@ router.post('/', auth, validations, async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
 
-router.put('/:id', auth, [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -57,7 +57,7 @@ router.put('/:id', auth, [body('codigo').optional().trim().notEmpty(), body('nom
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });

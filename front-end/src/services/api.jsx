@@ -6,8 +6,8 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const savedUser = localStorage.getItem('pdv_user');
-  if (savedUser) config.headers['x-pdv-role'] = JSON.parse(savedUser).role;
+  const token = localStorage.getItem('pdv_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 

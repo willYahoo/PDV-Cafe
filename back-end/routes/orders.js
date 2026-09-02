@@ -31,7 +31,7 @@ async function buildOrderItems(rawItems, session) {
   return items;
 }
 
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, auth.allowRoles('admin'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -49,7 +49,7 @@ router.post('/', auth, async (req, res) => {
   } finally { await session.endSession(); }
 });
 
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const { clienteId, status, inicio, fim } = req.query;
     const filter = {};
@@ -60,7 +60,7 @@ router.get('/', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ msg: 'Pedido não encontrado' });
@@ -68,7 +68,7 @@ router.get('/:id', auth, async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.patch('/:id/pagar', auth, async (req, res) => {
+router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order || !['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Este pedido não aceita novos pagamentos' });
@@ -83,7 +83,7 @@ router.patch('/:id/pagar', auth, async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
-router.patch('/:id/cancelar', auth, async (req, res) => {
+router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();

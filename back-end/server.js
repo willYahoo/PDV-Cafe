@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const colors = require('colors');
 const connectDB = require('./db');
+const User = require('./models/User');
 
 const app = express();
 const allowedOrigins = (process.env.FRONTEND_URL || 'https://pdv-mern-1.onrender.com')
@@ -24,7 +25,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'x-pdv-role'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
@@ -78,6 +79,11 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
+  const adminUsername = (process.env.ADMIN_USERNAME || 'admin').toLowerCase();
+  if (!await User.exists({ username: adminUsername })) {
+    await User.create({ username: adminUsername, password: process.env.ADMIN_PASSWORD || '1234', role: 'admin' });
+    console.log(`Administrador inicial "${adminUsername}" criado.`.green);
+  }
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`.yellow.bold);
   });

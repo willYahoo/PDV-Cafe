@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import api from '../services/api.jsx';
 import { AuthContext } from './AuthContextDefinition.jsx';
 
 export { AuthContext } from './AuthContextDefinition.jsx';
@@ -10,19 +11,17 @@ export const AuthProvider = ({ children }) => {
   });
   const loading = false;
   
-  const login = (username, password) => {
-    if (username !== 'admin' || password !== '1234') {
-      return Promise.reject(new Error('Usuário ou senha inválidos'));
-    }
-
-    const mockUser = { username: 'admin', role: 'admin' };
-    localStorage.setItem('pdv_user', JSON.stringify(mockUser));
-    setUser(mockUser);
-    return Promise.resolve(mockUser);
+  const login = async (username, password) => {
+    const { data } = await api.post('/auth/login', { username, password });
+    localStorage.setItem('pdv_token', data.token);
+    localStorage.setItem('pdv_user', JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
   };
 
   const logout = () => {
     localStorage.removeItem('pdv_user');
+    localStorage.removeItem('pdv_token');
     setUser(null);
   };
 

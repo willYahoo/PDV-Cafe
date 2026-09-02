@@ -7,7 +7,7 @@ const Customer = require('../models/Customer');
 // @route   GET api/customers
 // @desc    Listar clientes com busca
 // @access  Privado
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const { search } = req.query;
     let query = {};
@@ -34,7 +34,7 @@ router.get('/', auth, async (req, res) => {
 // @access  Privado
 router.post(
   '/',
-  [auth, body('nome', 'Nome é obrigatório').not().isEmpty()],
+  [auth, auth.allowRoles('admin'), body('nome', 'Nome é obrigatório').not().isEmpty()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -64,7 +64,7 @@ router.post(
 // @route   PUT api/customers/:id
 // @desc    Atualizar cliente
 // @access  Privado
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const { nome, telefone, endereco, cpf } = req.body;
 
@@ -97,7 +97,7 @@ router.put('/:id', auth, async (req, res) => {
 // @route   DELETE api/customers/:id
 // @desc    Deletar cliente
 // @access  Privado
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const customer = await Customer.findById(req.params.id);
     if (!customer) {

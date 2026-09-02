@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ToastProvider } from './components/Toast.jsx';
 import PrivateRoute from './components/PrivateRoute.jsx';
+import RoleRoute from './components/RoleRoute.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import PDV from './pages/PDV.jsx';
@@ -25,13 +26,15 @@ export default function App() {
               <Route element={<PrivateRoute />}>
                 <Route element={<Layout />}>
                   <Route path="/pdv" element={<PDV />} />
-                  <Route path="/produtos" element={<Products />} />
-                  <Route path="/clientes" element={<Customers />} />
-                  <Route path="/pedidos" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/comandas" element={<Comandas />} />
-                  <Route path="/contas-receber" element={<ContasReceber />} />
-                  <Route path="/usuarios" element={<Users />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route element={<RoleRoute roles={['admin']} />}>
+                    <Route path="/produtos" element={<Products />} />
+                    <Route path="/clientes" element={<Customers />} />
+                    <Route path="/pedidos" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/contas-receber" element={<ContasReceber />} />
+                    <Route path="/usuarios" element={<Users />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                  </Route>
                   <Route path="*" element={<Navigate to="/pdv" />} />
                 </Route>
               </Route>

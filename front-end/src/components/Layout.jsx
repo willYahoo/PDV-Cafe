@@ -148,25 +148,22 @@ export default function Layout() {
             <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
             <span style={{ whiteSpace: 'nowrap' }}>PDV</span>
           </Link>
-          {/* ✅ ITEM 2 — Produtos */}
-          <Link to="/produtos" className={ativoProdutos ? 'nav-link active' : 'nav-link'}>
+          {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>📦</span>
             <span style={{ whiteSpace: 'nowrap' }}>Produtos</span>
-          </Link>
-          {/* ✅ ITEM 3 — Clientes */}
-          <Link to="/clientes" className={ativoClientes ? 'nav-link active' : 'nav-link'}>
+          </Link>}
+          {user?.role === 'admin' && <Link to="/clientes" className={ativoClientes ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>👤</span>
             <span style={{ whiteSpace: 'nowrap' }}>Clientes</span>
-          </Link>
+          </Link>}
           <Link to="/comandas" className={ativoComandas ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
             <span style={{ whiteSpace: 'nowrap' }}>Comandas</span>
           </Link>
-          {/* ✅ ITEM 5 — A Receber */}
-          <Link to="/contas-receber" className={ativoContasReceber ? 'nav-link active' : 'nav-link'}>
+          {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>💰</span>
             <span>A Receber</span>
-          </Link>
+          </Link>}
           {user?.role === 'admin' && (
             <Link to="/usuarios" className={ativoUsuarios ? 'nav-link active' : 'nav-link'}>
               <span style={{ fontSize: 18, flexShrink: 0 }}>👥</span>
@@ -217,25 +214,22 @@ export default function Layout() {
           <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>PDV</span>
         </Link>
-        {/* ✅ ITEM 2 — Produtos */}
-        <Link to="/produtos" className={ativoProdutos ? 'bottom-link active' : 'bottom-link'}>
+        {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>📦</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Produtos</span>
-        </Link>
-        {/* ✅ ITEM 3 — Clientes */}
-        <Link to="/clientes" className={ativoClientes ? 'bottom-link active' : 'bottom-link'}>
+        </Link>}
+        {user?.role === 'admin' && <Link to="/clientes" className={ativoClientes ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>👤</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Clientes</span>
-        </Link>
+        </Link>}
         <Link to="/comandas" className={ativoComandas ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Comandas</span>
         </Link>
-        {/* ✅ ITEM 5 — A Receber */}
-        <Link to="/contas-receber" className={ativoContasReceber ? 'bottom-link active' : 'bottom-link'}>
+        {user?.role === 'admin' && <Link to="/contas-receber" className={ativoContasReceber ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>💰</span>
           <span style={{ fontSize: '10px' }}>A Receber</span>
-        </Link>
+        </Link>}
         {user?.role === 'admin' && (
           <Link to="/usuarios" className={ativoUsuarios ? 'bottom-link active' : 'bottom-link'}>
             <span style={{ fontSize: 20, lineHeight: 1 }}>👥</span>
