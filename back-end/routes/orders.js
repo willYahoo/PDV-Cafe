@@ -97,6 +97,31 @@ router.patch('/:id/quitar', auth, auth.allowRoles('admin'), async (req, res) => 
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
+router.patch('/cliente/:clienteId/quitar', auth, auth.allowRoles('admin'), async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const pedidos = await Order.find({ clienteId: req.params.clienteId, status: { $in: ['pendente', 'parcial'] } }).session(session);
+    if (!pedidos.length) throw new Error('Este cliente não possui pendências');
+    const tipo = req.body.tipo || 'dinheiro';
+    const tiposAceitos = ['dinheiro', 'pix', 'credito_loja', 'cartao_credito', 'cartao_debito', 'cheque'];
+    if (!tiposAceitos.includes(tipo)) throw new Error('Forma de pagamento inválida');
+    pedidos.forEach((order) => {
+      const pago = order.pagamentos.reduce((sum, payment) => sum + (Number(payment.valorRecebido) || 0), 0);
+      const saldo = money(order.total - pago);
+      if (saldo <= 0) return;
+      order.pagamentos.push({ tipo, valorRecebido: saldo, dataPagamento: new Date(), quitado: true, observacao: req.body.observacao || 'Quitação total do cliente' });
+      order.status = 'pago';
+    });
+    await Promise.all(pedidos.map((order) => order.save({ session })));
+    await session.commitTransaction();
+    res.json({ pedidos });
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
+});
+
 router.patch('/:id/cancelar', auth, auth.allowRoles('admin'), async (req, res) => {
   const session = await mongoose.startSession();
   try {

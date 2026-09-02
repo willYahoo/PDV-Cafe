@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { buildNotaVendaHtml, buildNotaVendaTexto } from '../utils/notaVenda.js';
+import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
 
 
 const statusCor = {
@@ -32,6 +33,7 @@ export default function ContasReceber() {
   const [fim, setFim] = useState('');
   const [pagamentoModal, setPagamentoModal] = useState(null);
   const [pagamentoConcluido, setPagamentoConcluido] = useState(null);
+  const [quitarClienteModal, setQuitarClienteModal] = useState(false);
   const [pagamentoMultiploModal, setPagamentoMultiploModal] = useState(null);
   const [formPagamento, setFormPagamento] = useState({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'credito_loja', observacao: '' });
@@ -165,6 +167,20 @@ export default function ContasReceber() {
     });
   };
 
+  const consolidarPedidos = (pedidosConcluidos) => {
+    const primeiro = pedidosConcluidos[0];
+    return {
+      ...primeiro,
+      numero: pedidosConcluidos.map(pedido => pedido.numero).join(', '),
+      itens: pedidosConcluidos.flatMap(pedido => pedido.itens || []),
+      subtotal: pedidosConcluidos.reduce((soma, pedido) => soma + (Number(pedido.subtotal || pedido.total) || 0), 0),
+      desconto: pedidosConcluidos.reduce((soma, pedido) => soma + (Number(pedido.desconto) || 0), 0),
+      total: pedidosConcluidos.reduce((soma, pedido) => soma + (Number(pedido.total) || 0), 0),
+      pagamentos: pedidosConcluidos.flatMap(pedido => pedido.pagamentos || []),
+      status: 'pago',
+    };
+  };
+
 
   // ✅ Registrar pagamento de TODOS os marcados
   const registrarPagamentoMultiplo = async () => {
@@ -196,19 +212,7 @@ export default function ContasReceber() {
     setPagamentoMultiploModal(null);
     setSelecionados(new Set());
     if (pedidosRecebidos.length > 0) {
-      const primeiro = pedidosRecebidos[0];
-      const total = pedidosRecebidos.reduce((soma, pedido) => soma + (Number(pedido.total) || 0), 0);
-      const subtotal = pedidosRecebidos.reduce((soma, pedido) => soma + (Number(pedido.subtotal || pedido.total) || 0), 0);
-      setPagamentoConcluido({
-        ...primeiro,
-        numero: pedidosRecebidos.map(pedido => pedido.numero).join(', '),
-        itens: pedidosRecebidos.flatMap(pedido => pedido.itens || []),
-        subtotal,
-        desconto: pedidosRecebidos.reduce((soma, pedido) => soma + (Number(pedido.desconto) || 0), 0),
-        total,
-        pagamentos: pedidosRecebidos.flatMap(pedido => pedido.pagamentos || []),
-        status: falhas === 0 ? 'pago' : 'parcial',
-      });
+      setPagamentoConcluido(consolidarPedidos(pedidosRecebidos));
     }
     carregarPedidos();
 
@@ -260,13 +264,19 @@ export default function ContasReceber() {
   };
 
 
-  const quitarTotal = async (pedido) => {
-    if (!confirm(`Deseja QUITAR totalmente o pedido #${pedido.numero}?`)) return;
+  const quitarTotalCliente = async () => {
+    if (!clienteFiltro) return showToast('Selecione um cliente para quitar todas as pendências', 'warning');
+    setQuitarClienteModal(true);
+  };
+
+  const confirmarQuitacaoCliente = async () => {
     try {
-      await api.patch(`/orders/${pedido._id}/quitar`, {});
-      showToast('✅ Pedido QUITADO!', 'success');
+      const { data } = await api.patch(`/orders/cliente/${clienteFiltro}/quitar`, { tipo: formPagamentoMultiplo.tipo, observacao: formPagamentoMultiplo.observacao });
+      setQuitarClienteModal(false);
+      setPagamentoConcluido(consolidarPedidos(data.pedidos));
+      showToast('✅ Todas as pendências do cliente foram quitadas!', 'success');
       carregarPedidos();
-    } catch { showToast('Erro ao quitar', 'error'); }
+    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao quitar pendências', 'error'); }
   };
 
 
@@ -621,12 +631,17 @@ Obrigado! 🙏`
               </button>
             )}
             <div style={{ display: 'flex', gap: 6 }}>
-              {/* ✅ Botão Alterado: Agora é RECEBER MARCADOS */}
               <button onClick={abrirReceberMarcados} style={{
                   padding: '6px 12px', background: 'var(--brand-cream)', color: 'var(--brand-brown)',
                 border: 'none', borderRadius: 8,
                 fontSize: 12, fontWeight: 700, cursor: 'pointer'
               }}>💰 Receber Marcados ({selecionados.size})</button>
+              {clienteFiltro && (
+                <button onClick={quitarTotalCliente} style={{
+                  padding: '6px 12px', background: 'var(--success-bg)', color: '#fff',
+                  border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer'
+                }}>✅ Quitar Total do Cliente</button>
+              )}
               
               {clienteFiltro && (
                 <button onClick={gerarRelatorioCompleto} style={{
@@ -779,20 +794,6 @@ Obrigado! 🙏`
                         💰 Receber
                       </button>
                       
-                      <button 
-                        onClick={() => quitarTotal(pedido)} 
-                        style={{
-                          padding: '10px 8px', 
-                          background: 'var(--brand-brown)',
-                          color: '#fff',
-                          border: 'none', borderRadius: 8, 
-                          fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          whiteSpace: 'nowrap', width: '100%', boxSizing: 'border-box'
-                        }}
-                      >
-                        ✅ Quitar Total
-                      </button>
                     </>
                   )}
                 </div>
@@ -907,32 +908,31 @@ Obrigado! 🙏`
         </div>
       )}
 
-      {pagamentoConcluido && (
-        <div onClick={() => setPagamentoConcluido(null)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
-        }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16,
-            padding: 24, width: '100%', maxWidth: 360, textAlign: 'center'
-          }}>
-            <h3 style={{ margin: '0 0 8px' }}>✅ Pagamento registrado</h3>
-            <p style={{ margin: '0 0 18px', color: 'var(--text-secondary)' }}>
-              Pedido #{pagamentoConcluido.numero} atualizado com sucesso.
-            </p>
-            <div style={{ display: 'grid', gap: 10 }}>
-              <button onClick={() => pagamentoConcluido.status === 'pago' ? imprimirComprovante(pagamentoConcluido) : imprimirPedido(pagamentoConcluido)} style={{
-                padding: 12, background: 'var(--brand-brown)', color: '#fff', border: 'none', borderRadius: 10,
-                fontWeight: 700, cursor: 'pointer'
-              }}>🖨️ {pagamentoConcluido.status === 'pago' ? 'Imprimir quitação' : 'Imprimir pedido'}</button>
-              <button onClick={() => enviarWhatsApp(pagamentoConcluido)} style={{
-                padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10,
-                fontWeight: 700, cursor: 'pointer'
-              }}>💬 Enviar pelo WhatsApp</button>
-              <button onClick={() => setPagamentoConcluido(null)} style={{
-                padding: 11, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10,
-                fontWeight: 600, cursor: 'pointer'
-              }}>Fechar</button>
+      <PagamentoResultadoModal
+        pedido={pagamentoConcluido}
+        titulo="Pagamento concluído"
+        onPrint={() => pagamentoConcluido?.status === 'pago' ? imprimirComprovante(pagamentoConcluido) : imprimirPedido(pagamentoConcluido)}
+        onWhatsApp={() => enviarWhatsApp(pagamentoConcluido)}
+        onClose={() => setPagamentoConcluido(null)}
+      />
+
+      {quitarClienteModal && (
+        <div onClick={() => setQuitarClienteModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
+          <div onClick={event => event.stopPropagation()} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380 }}>
+            <h3 style={{ margin: '0 0 8px' }}>✅ Quitar total do cliente</h3>
+            <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>Todas as pendências do cliente selecionado serão quitadas.</p>
+            <label style={{ display: 'block', marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Forma de pagamento</label>
+            <select value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
+              <option value="dinheiro">💵 Dinheiro</option>
+              <option value="pix">🔄 PIX</option>
+              <option value="credito_loja">🏪 Crédito Loja</option>
+              <option value="cartao_credito">💳 Cartão de Crédito</option>
+              <option value="cartao_debito">💳 Cartão de Débito</option>
+              <option value="cheque">📄 Cheque</option>
+            </select>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setQuitarClienteModal(false)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={confirmarQuitacaoCliente} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Quitar tudo</button>
             </div>
           </div>
         </div>
