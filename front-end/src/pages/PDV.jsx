@@ -263,8 +263,7 @@ export default function PDV() {
       `• ${item.nome}\n  ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')} = R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}`
     ).join('\n');
     const texto = encodeURIComponent(
-`🖼️ ${window.location.origin}/Abraco1.png
-🛒 *PEDIDO* #${pedido.numero}
+`🛒 *PEDIDO* #${pedido.numero}
 📅 ${data}
 👤 Cliente: ${pedido.clienteNome}
 💼 Atendente: ${pedido.atendente}

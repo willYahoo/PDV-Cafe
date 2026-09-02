@@ -78,23 +78,12 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
 }
 
 export function buildNotaVendaTexto(pedido, opcoes = {}) {
-  const texto = buildNotaVendaTextoBase(pedido, opcoes);
-  return texto.replace('*SABOR DE ABRAÇO*', `🖼️ ${logoUrl()}\n*SABOR DE ABRAÇO*`);
+  return buildNotaVendaTextoBase(pedido, opcoes);
 }
 
-export async function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
+export function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
   if (!pedido) return;
   const texto = buildNotaVendaTexto(pedido, opcoes);
-  try {
-    const resposta = await fetch('/Abraco1.png');
-    const arquivo = new File([await resposta.blob()], 'logo-sabor-de-abraco.png', { type: 'image/png' });
-    if (navigator.share && navigator.canShare?.({ files: [arquivo] })) {
-      await navigator.share({ title: 'Sabor de Abraço', text: texto, files: [arquivo] });
-      return;
-    }
-  } catch (error) {
-    if (error.name === 'AbortError') return;
-  }
   const fone = telefone ? telefone.replace(/\D/g, '') : (pedido.clienteTelefone || '').replace(/\D/g, '');
   const url = fone ? `https://wa.me/55${fone}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
   window.open(url, '_blank');
