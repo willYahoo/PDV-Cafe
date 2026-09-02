@@ -12,6 +12,7 @@ import Orders from './pages/Orders.jsx';
 import ContasReceber from './pages/ContasReceber';
 import Users from './pages/Users';
 import Comandas from './pages/Comandas.jsx';
+import Dashboard from './pages/Dashboard.jsx';
 
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
                   <Route path="/comandas" element={<Comandas />} />
                   <Route path="/contas-receber" element={<ContasReceber />} />
                   <Route path="/usuarios" element={<Users />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="*" element={<Navigate to="/pdv" />} />
                 </Route>
               </Route>

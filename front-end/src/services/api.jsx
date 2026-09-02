@@ -5,6 +5,12 @@ const api = axios.create({
   withCredentials: true,
 });
 
+api.interceptors.request.use((config) => {
+  const savedUser = localStorage.getItem('pdv_user');
+  if (savedUser) config.headers['x-pdv-role'] = JSON.parse(savedUser).role;
+  return config;
+});
+
 api.interceptors.response.use(
   (res) => res,
   (err) => Promise.reject(err)

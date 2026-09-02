@@ -1,4 +1,5 @@
 module.exports = function (req, res, next) {
-  req.user = { username: 'operador' };
+  const role = req.headers['x-pdv-role'] === 'admin' ? 'admin' : 'operador';
+  req.user = { username: role === 'admin' ? 'admin' : 'operador', role };
   next();
 };

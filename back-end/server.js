@@ -50,6 +50,7 @@ app.use('/api/customers', require('./routes/customers'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/comandas', require('./routes/comandas'));
 app.use('/api/fiscal', require('./routes/fiscal'));
+app.use('/api/dashboard', require('./routes/dashboard'));
 
 // Rota base
 app.get('/api', (req, res) => {

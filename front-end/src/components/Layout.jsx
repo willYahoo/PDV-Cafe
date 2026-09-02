@@ -21,6 +21,7 @@ export default function Layout() {
   const ativoComandas = location.pathname.startsWith('/comandas');
   const ativoContasReceber = location.pathname.startsWith('/contas-receber');
   const ativoUsuarios = location.pathname.startsWith('/usuarios');
+  const ativoDashboard = location.pathname.startsWith('/dashboard');
 
   // ✅ Título e ícone — UMA POR UMA, sem função
   let iconePagina = '☕';
@@ -53,6 +54,10 @@ export default function Layout() {
   if (location.pathname.startsWith('/usuarios')) {
     iconePagina = '👥';
     tituloPagina = 'Usuários';
+  }
+  if (location.pathname.startsWith('/dashboard')) {
+    iconePagina = '📊';
+    tituloPagina = 'Dashboard';
   }
 
 
@@ -146,6 +151,7 @@ export default function Layout() {
         </button>
 
         <nav style={{ flex: 1, overflowY: 'auto' }}>
+          {user?.role === 'admin' && <Link to="/dashboard" className={ativoDashboard ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>📊</span><span style={{ whiteSpace: 'nowrap' }}>Dashboard</span></Link>}
           {/* ✅ ITEM 1 — PDV */}
           <Link to="/pdv" className={ativoPDV ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>☕</span>
@@ -219,6 +225,7 @@ export default function Layout() {
           BOTTOM NAV MOBILE — ITENS UM POR UM
           ========================================== */}
       <nav id="bottom-nav">
+        {user?.role === 'admin' && <Link to="/dashboard" className={ativoDashboard ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>📊</span><span style={{ fontSize: '10px' }}>Dashboard</span></Link>}
         {/* ✅ ITEM 1 — PDV */}
         <Link to="/pdv" className={ativoPDV ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>☕</span>
