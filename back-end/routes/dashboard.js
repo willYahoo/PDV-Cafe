@@ -21,6 +21,11 @@ const inicioDoPeriodo = (periodo) => {
   return inicio;
 };
 
+const fimDoMesAtual = () => {
+  const agora = new Date();
+  return new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
+};
+
 router.use(auth);
 router.use((req, res, next) => {
   if (req.user.role !== 'admin') return res.status(403).json({ msg: 'Acesso restrito ao administrador' });
@@ -30,7 +35,7 @@ router.use((req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const periodos = ['dia', 'semana', 'mes'];
-    const [periodMetrics, openCommands, pedidosDia, clientesCadastrados, clientesRecentes] = await Promise.all([
+    const [periodMetrics, openCommands, pedidosDia, pedidosMes, clientesCadastrados, clientesRecentes] = await Promise.all([
       Promise.all(periodos.map(async (periodo) => {
         const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
@@ -42,6 +47,7 @@ router.get('/', async (req, res) => {
       })),
       Comanda.countDocuments({ status: 'aberta' }),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteNome createdAt itens pagamentos'),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
     ]);
@@ -50,7 +56,42 @@ router.get('/', async (req, res) => {
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + Number(item.quantidade || 0), 0), 0);
     const vendasHojeRecebido = vendasHoje.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
     const vendasHojePendente = Math.max(0, vendasHojeTotal - vendasHojeRecebido);
-    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, atualizadoEm: new Date() });
+    const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
+    const pagamentosMes = new Map();
+    const produtosMes = new Map();
+    const clientesMes = new Set();
+    const vendasPorDia = new Map();
+    vendasMes.forEach((pedido) => {
+      if (pedido.clienteNome) clientesMes.add(pedido.clienteNome);
+      const dia = new Date(pedido.createdAt).toLocaleDateString('pt-BR');
+      vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + Number(pedido.total || 0));
+      (pedido.pagamentos || []).forEach((pagamento) => pagamentosMes.set(pagamento.tipo, (pagamentosMes.get(pagamento.tipo) || 0) + Number(pagamento.valorRecebido || 0)));
+      (pedido.itens || []).forEach((item) => {
+        const atual = produtosMes.get(item.nome) || { nome: item.nome, quantidade: 0, total: 0 };
+        atual.quantidade += Number(item.quantidade || 0);
+        atual.total += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
+        produtosMes.set(item.nome, atual);
+      });
+    });
+    const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
+    const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
+    const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
+    const relatorioMes = {
+      periodo: `${inicioDoPeriodo('mes').toLocaleDateString('pt-BR')} a ${new Date(fimDoMesAtual().getTime() - 1).toLocaleDateString('pt-BR')}`,
+      pedidos: pedidosMes.length,
+      vendas: vendasMes.length,
+      itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + Number(item.quantidade || 0), 0), 0),
+      total: totalMes,
+      recebido: recebidoMes,
+      pendente: Math.max(0, totalMes - recebidoMes),
+      ticketMedio: vendasMes.length ? totalMes / vendasMes.length : 0,
+      status: statusMes,
+      pagamentos: [...pagamentosMes.entries()].map(([tipo, total]) => ({ tipo, total })).sort((a, b) => b.total - a.total),
+      produtos: [...produtosMes.values()].sort((a, b) => b.quantidade - a.quantidade).slice(0, 10),
+      clientes: clientesMes.size,
+      vendasPorDia: [...vendasPorDia.entries()].map(([dia, total]) => ({ dia, total })),
+    };
+    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, atualizadoEm: new Date() });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
