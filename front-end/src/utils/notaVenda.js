@@ -85,8 +85,15 @@ export function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
   if (!pedido) return;
   const texto = buildNotaVendaTexto(pedido, opcoes);
   const fone = telefone ? telefone.replace(/\D/g, '') : (pedido.clienteTelefone || '').replace(/\D/g, '');
-  const url = fone ? `https://wa.me/55${fone}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
-  window.open(url, '_blank');
+  const encodedText = encodeURIComponent(texto);
+  const appUrl = fone ? `whatsapp://send?phone=55${fone}&text=${encodedText}` : `whatsapp://send?text=${encodedText}`;
+  const webUrl = fone ? `https://web.whatsapp.com/send?phone=55${fone}&text=${encodedText}` : `https://web.whatsapp.com/send?text=${encodedText}`;
+  const fallback = window.setTimeout(() => window.open(webUrl, '_blank'), 1200);
+  const appWindow = window.open(appUrl, '_blank');
+  if (!appWindow) {
+    window.clearTimeout(fallback);
+    window.open(webUrl, '_blank');
+  }
 }
 
 function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VENDA' } = {}) {
