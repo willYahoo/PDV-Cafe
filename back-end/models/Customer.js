@@ -30,5 +30,6 @@ const CustomerSchema = new mongoose.Schema({
 });
 
 CustomerSchema.index({ nome: 'text', telefone: 'text' });
+CustomerSchema.index({ telefone: 1 }, { unique: true, partialFilterExpression: { telefone: { $gt: '' } } });
 
 module.exports = mongoose.model('Customer', CustomerSchema);

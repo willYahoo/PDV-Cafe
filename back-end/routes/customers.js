@@ -5,6 +5,7 @@ const auth = require('../middleware/auth');
 const Customer = require('../models/Customer');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
+const normalizarTelefone = (telefone) => String(telefone || '').replace(/\D/g, '');
 
 // @route   GET api/customers
 // @desc    Listar clientes com busca
@@ -45,10 +46,14 @@ router.post(
 
     try {
       const { nome, telefone, endereco, cpf } = req.body;
+      const telefoneNormalizado = normalizarTelefone(telefone);
+      if (telefoneNormalizado && await Customer.exists({ telefone: telefoneNormalizado })) {
+        return res.status(409).json({ msg: 'Telefone já cadastrado' });
+      }
 
       const customer = new Customer({
         nome: nome.trim(),
-        telefone: telefone ? telefone.trim() : '',
+        telefone: telefoneNormalizado,
         endereco: endereco ? endereco.trim() : '',
         cpf: cpf ? cpf.trim() : '',
         createdBy: req.user.id,
@@ -58,6 +63,7 @@ router.post(
       res.status(201).json(customer);
     } catch (err) {
       console.error(err.message);
+      if (err.code === 11000) return res.status(409).json({ msg: 'Telefone já cadastrado' });
       res.status(500).send('Erro no servidor');
     }
   }
@@ -69,10 +75,14 @@ router.post(
 router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const { nome, telefone, endereco, cpf } = req.body;
+    const telefoneNormalizado = telefone !== undefined ? normalizarTelefone(telefone) : undefined;
+    if (telefoneNormalizado && await Customer.exists({ telefone: telefoneNormalizado, _id: { $ne: req.params.id } })) {
+      return res.status(409).json({ msg: 'Telefone já cadastrado' });
+    }
 
     const updateFields = {};
     if (nome) updateFields.nome = nome.trim();
-    if (telefone !== undefined) updateFields.telefone = telefone.trim();
+    if (telefone !== undefined) updateFields.telefone = telefoneNormalizado;
     if (endereco !== undefined) updateFields.endereco = endereco.trim();
     if (cpf !== undefined) updateFields.cpf = cpf.trim();
 
@@ -92,6 +102,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Cliente não encontrado' });
     }
+    if (err.code === 11000) return res.status(409).json({ msg: 'Telefone já cadastrado' });
     res.status(500).send('Erro no servidor');
   }
 });

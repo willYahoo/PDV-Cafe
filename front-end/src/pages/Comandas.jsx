@@ -175,7 +175,7 @@ export default function Comandas() {
     if (!paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     const comandaFechada = selected;
     try {
-      const { data } = await api.post(`/comandas/${selected._id}/fechar`, { desconto: Number(discount), metodoPagamento: paymentMethod });
+      const { data } = await api.post(`/comandas/${selected._id}/fechar`, { desconto: Number(discount), metodoPagamento: paymentMethod, telefone: telefoneModal });
       setModalFechamento(false);
       setDiscount('0'); setPaymentMethod(''); setPaymentError(false);
       setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal });
@@ -183,9 +183,6 @@ export default function Comandas() {
       load();
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao fechar comanda', 'error'); }
   };
-
-  // verifica se o cliente da comanda tem telefone registrado
-  const clienteTemTelefone = selected?.clienteId; // clientes cadastrados têm telefone via Customer
 
   return (
     <div className="comandas-page">
@@ -272,16 +269,13 @@ export default function Comandas() {
               </select>
             </div>
 
-            {/* telefone (só para clientes não cadastrados) */}
-            {!clienteTemTelefone && (
-              <div style={{ marginBottom: 18 }}>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                  📱 WhatsApp do cliente <span style={{ fontWeight: 400 }}>(opcional — para envio do comprovante)</span>
-                </label>
-                <input type="tel" placeholder="(00) 00000-0000" value={telefoneModal} onChange={e => setTelefoneModal(e.target.value)}
-                  className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
-              </div>
-            )}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                📱 Celular do cliente <span style={{ fontWeight: 400 }}>(opcional — salva nome e telefone no cadastro)</span>
+              </label>
+              <input type="tel" placeholder="(00) 00000-0000" value={telefoneModal} onChange={e => setTelefoneModal(e.target.value)}
+                className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+            </div>
 
             <button onClick={confirmarFechamento} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 12, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
               ✅ Confirmar Fechamento
@@ -305,7 +299,7 @@ export default function Comandas() {
             </p>
 
             {/* campo de telefone no modal de sucesso (se não preencheu antes) */}
-            {!clienteTemTelefone && (
+            {!modalSucesso.telefone && (
               <div style={{ marginBottom: 16, textAlign: 'left' }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
                   📱 WhatsApp para enviar comprovante

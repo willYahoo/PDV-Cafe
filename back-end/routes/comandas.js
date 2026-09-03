@@ -154,22 +154,37 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
     const total = money(subtotal - discount);
     const creditoLoja = metodoPagamento === 'credito_loja';
-    const customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
+    const telefone = String(req.body.telefone || '').replace(/\D/g, '');
+    let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
+    if (telefone) {
+      customer = customer || await Customer.findOne({ telefone }).session(session);
+      if (customer) {
+        if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
+        customer.telefone = telefone;
+        await customer.save({ session });
+      } else {
+        customer = new Customer({ nome: comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
+        await customer.save({ session });
+      }
+    }
     const order = new Order({
       itens: comanda.itens,
       subtotal,
       desconto: discount,
       total,
-      clienteId: comanda.clienteId,
+      clienteId: customer?.id || comanda.clienteId,
       clienteNome: comanda.clienteNome,
-      clienteTelefone: customer?.telefone || '',
+      clienteTelefone: customer?.telefone || telefone,
       atendente: req.user.username,
       comandaId: comanda.id,
       status: creditoLoja ? 'pendente' : 'pago',
       pagamentos: creditoLoja ? [] : [{ tipo: metodoPagamento, valorRecebido: total, dataPagamento: new Date(), quitado: true }],
     });
     await order.save({ session });
-    if (comanda.clienteId) await Customer.findByIdAndUpdate(comanda.clienteId, { $inc: { cafesFidelidade: 1 } }, { session });
+    if (customer) {
+      await Customer.findByIdAndUpdate(customer.id, { $inc: { cafesFidelidade: 1 } }, { session });
+      comanda.clienteId = customer.id;
+    }
     comanda.status = 'fechada'; comanda.pedidoId = order.id;
     await comanda.save({ session });
     await session.commitTransaction();

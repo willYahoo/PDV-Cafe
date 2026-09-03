@@ -57,14 +57,17 @@ export default function Customers() {
     if (telefoneLimpo.length !== 11) {
       return showToast('⚠️ Telefone inválido! Digite com DDD e 9 dígitos', 'warning');
     }
-    if (cpfLimpo.length !== 11) {
-      return showToast('⚠️ CPF inválido! Digite os 11 números', 'warning');
-    }
-
     // 🔒 Verifica duplicidade de CPF
-    if (cpfJaExiste(cpfLimpo, editing?._id)) {
+    if (cpfLimpo && cpfLimpo.length !== 11) {
+      return showToast('⚠️ CPF inválido! Digite os 11 números ou deixe em branco', 'warning');
+    }
+    if (cpfLimpo && cpfJaExiste(cpfLimpo, editing?._id)) {
       return showToast('⚠️ Este CPF já está cadastrado!', 'warning');
     }
+    const telefoneJaExiste = clientes.some(c =>
+      String(c.telefone || '').replace(/\D/g, '') === telefoneLimpo && c._id !== editing?._id
+    );
+    if (telefoneJaExiste) return;
 
     const dadosParaEnviar = {
       nome: form.nome.trim(),
@@ -166,14 +169,13 @@ export default function Customers() {
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                CPF * <span style={{ color: 'var(--error-bg)', fontSize: 10 }}>(obrigatório/único)</span>
+                CPF <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>(opcional/único)</span>
               </label>
               <input 
                 placeholder="000.000.000-00" 
                 value={form.cpf}
                 onChange={handleCpfChange}
                 style={inputStyle} 
-                required
               />
             </div>
             <div>
