@@ -140,6 +140,36 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador'), async 
   } finally { await session.endSession(); }
 });
 
+router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const comanda = await Comanda.findById(req.params.id).session(session);
+    const telefone = String(req.body.telefone || '').replace(/\D/g, '');
+    if (!comanda || !telefone) throw new Error('Dados do cliente inválidos');
+
+    let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
+    customer = customer || await Customer.findOne({ telefone }).session(session);
+    if (customer) {
+      if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
+      customer.telefone = telefone;
+      await customer.save({ session });
+    } else {
+      customer = new Customer({ nome: comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
+      await customer.save({ session });
+    }
+
+    comanda.clienteId = customer.id;
+    await comanda.save({ session });
+    const order = comanda.pedidoId ? await Order.findByIdAndUpdate(comanda.pedidoId, { clienteId: customer.id, clienteNome: customer.nome, clienteTelefone: telefone }, { new: true, session }) : null;
+    await session.commitTransaction();
+    res.json({ customer, order });
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
+});
+
 router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   const session = await mongoose.startSession();
   try {

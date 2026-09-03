@@ -184,6 +184,15 @@ export default function Comandas() {
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao fechar comanda', 'error'); }
   };
 
+  const enviarComprovante = async () => {
+    if (modalSucesso?.telefone) {
+      try {
+        await api.patch(`/comandas/${modalSucesso.comanda._id}/cliente`, { telefone: modalSucesso.telefone });
+      } catch { /* mantém o envio do comprovante mesmo se o cadastro falhar */ }
+    }
+    await enviarWhatsApp(modalSucesso.pedido, modalSucesso.comanda, modalSucesso.telefone);
+  };
+
   return (
     <div className="comandas-page">
       <div className="page-heading"><h1>☕ Comandas</h1><p>Abra comandas, lance consumos e feche no caixa.</p></div>
@@ -316,7 +325,7 @@ export default function Comandas() {
                 style={{ width: '100%', padding: '13px', background: 'var(--brand-brown, #7c4b1e)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 🖨️ Imprimir Cupom
               </button>
-              <button onClick={() => enviarWhatsApp(modalSucesso.pedido, modalSucesso.comanda, modalSucesso.telefone)}
+              <button onClick={enviarComprovante}
                 style={{ width: '100%', padding: '13px', background: '#25d366', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 💬 Enviar pelo WhatsApp
               </button>
