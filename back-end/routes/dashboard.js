@@ -35,7 +35,7 @@ router.use((req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const periodos = ['dia', 'semana', 'mes'];
-    const [periodMetrics, openCommands, pedidosDia, pedidosMes, recebimentosDia, recebimentosMes, clientesCadastrados, clientesRecentes] = await Promise.all([
+    const [periodMetrics, openCommands, pedidosDia, pedidosMes, recebimentosDia, recebimentosMes, clientesCadastrados, clientesRecentes, pedidosClientes] = await Promise.all([
       Promise.all(periodos.map(async (periodo) => {
         const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
@@ -47,11 +47,12 @@ router.get('/', async (req, res) => {
       })),
       Comanda.countDocuments({ status: 'aberta' }),
       Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteId clienteNome createdAt itens pagamentos'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteId clienteNome clienteTelefone createdAt itens pagamentos'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos'),
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
+      Order.find({ clienteTelefone: { $exists: true, $ne: '' } }).sort({ createdAt: -1 }).select('clienteId clienteNome clienteTelefone'),
     ]);
     const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
@@ -78,10 +79,19 @@ router.get('/', async (req, res) => {
     const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
+    const telefonesPorCliente = new Map();
+    const telefonesPorNome = new Map();
+    pedidosClientes.forEach((pedido) => {
+      const telefone = String(pedido.clienteTelefone || '').replace(/\D/g, '');
+      if (!telefone) return;
+      if (pedido.clienteId && !telefonesPorCliente.has(String(pedido.clienteId))) telefonesPorCliente.set(String(pedido.clienteId), telefone);
+      if (pedido.clienteNome && !telefonesPorNome.has(pedido.clienteNome)) telefonesPorNome.set(pedido.clienteNome, telefone);
+    });
+    const telefoneDoCliente = (cliente) => cliente.telefone || telefonesPorCliente.get(String(cliente._id)) || telefonesPorNome.get(cliente.nome) || '';
     const clientesRelatorio = new Map(clientesRecentes.map((cliente) => [String(cliente._id), {
       id: cliente._id,
       nome: cliente.nome,
-      telefone: cliente.telefone || '',
+      telefone: telefoneDoCliente(cliente),
       pedidos: 0,
       total: 0,
       recebido: 0,
@@ -89,12 +99,13 @@ router.get('/', async (req, res) => {
     }]));
     const todosClientes = await Customer.find().sort({ nome: 1 }).select('nome telefone createdAt cafesFidelidade');
     todosClientes.forEach((cliente) => {
-      if (!clientesRelatorio.has(String(cliente._id))) clientesRelatorio.set(String(cliente._id), { id: cliente._id, nome: cliente.nome, telefone: cliente.telefone || '', pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
+      if (!clientesRelatorio.has(String(cliente._id))) clientesRelatorio.set(String(cliente._id), { id: cliente._id, nome: cliente.nome, telefone: telefoneDoCliente(cliente), pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
     });
     vendasMes.forEach((pedido) => {
       const chave = pedido.clienteId ? String(pedido.clienteId) : `nome:${pedido.clienteNome || ''}`;
       if (!clientesRelatorio.has(chave)) clientesRelatorio.set(chave, { id: pedido.clienteId || chave, nome: pedido.clienteNome || 'Cliente não identificado', telefone: '', pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
       const cliente = clientesRelatorio.get(chave);
+      if (!cliente.telefone) cliente.telefone = pedido.clienteTelefone || (pedido.clienteId && telefonesPorCliente.get(String(pedido.clienteId))) || telefonesPorNome.get(pedido.clienteNome) || '';
       cliente.pedidos += 1;
       cliente.total += Number(pedido.total || 0);
       cliente.recebido += (pedido.pagamentos || []).reduce((total, pagamento) => total + Number(pagamento.valorRecebido || 0), 0);
