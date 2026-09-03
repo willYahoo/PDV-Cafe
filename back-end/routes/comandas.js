@@ -59,11 +59,11 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req
   try {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
-    const quantity = Number(req.body.quantidade);
+    const quantidade = Number(req.body.quantidade);
     const product = await Product.findById(req.body.produtoId).session(session);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
-    if (!product || !Number.isFinite(quantity) || quantity < 0.001) return res.status(400).json({ msg: 'Item inválido' });
-    if (!product.vendidoFracionado && !Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Item inválido' });
+    if (!product.vendidoFracionado && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const modificadores = Array.isArray(req.body.modificadores)
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
@@ -84,17 +84,17 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), a
   try {
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
-    const quantity = Number(req.body.quantidade);
+    const quantidade = Number(req.body.quantidade);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     const item = comanda.itens.id(req.params.itemId);
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
-    if (!Number.isFinite(quantity) || quantity < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
+    if (!Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
     const product = await Product.findById(item.produtoId).session(session);
-    if (product && !product.vendidoFracionado && !Number.isInteger(quantity)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
-    const diferenca = quantity - Number(item.quantidade || 0);
+    if (product && !product.vendidoFracionado && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    const diferenca = quantidade - Number(item.quantidade || 0);
     if (diferenca > 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: diferenca }], 'baixar', session);
     if (diferenca < 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: Math.abs(diferenca) }], 'devolver', session);
-    item.quantidade = quantity;
+    item.quantidade = quantidade;
     await comanda.save({ session });
     await session.commitTransaction();
     res.json(comanda);
