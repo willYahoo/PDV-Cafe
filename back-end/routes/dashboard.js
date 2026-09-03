@@ -91,15 +91,6 @@ router.get('/', async (req, res) => {
     todosClientes.forEach((cliente) => {
       if (!clientesRelatorio.has(String(cliente._id))) clientesRelatorio.set(String(cliente._id), { id: cliente._id, nome: cliente.nome, telefone: cliente.telefone || '', pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
     });
-    vendasMes.forEach((pedido) => {
-      const chave = pedido.clienteId ? String(pedido.clienteId) : `nome:${pedido.clienteNome || ''}`;
-      if (!clientesRelatorio.has(chave)) clientesRelatorio.set(chave, { id: pedido.clienteId || chave, nome: pedido.clienteNome || 'Cliente não identificado', telefone: '', pedidos: 0, total: 0, recebido: 0, ultimaCompra: null });
-      const cliente = clientesRelatorio.get(chave);
-      cliente.pedidos += 1;
-      cliente.total += Number(pedido.total || 0);
-      cliente.recebido += (pedido.pagamentos || []).reduce((total, pagamento) => total + Number(pagamento.valorRecebido || 0), 0);
-      if (!cliente.ultimaCompra || new Date(pedido.createdAt) > new Date(cliente.ultimaCompra)) cliente.ultimaCompra = pedido.createdAt;
-    });
     const relatorioClientes = [...clientesRelatorio.values()].map((cliente) => ({ ...cliente, pendente: Math.max(0, cliente.total - cliente.recebido) })).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
     const relatorioMes = {
       periodo: `${inicioDoPeriodo('mes').toLocaleDateString('pt-BR')} a ${new Date(fimDoMesAtual().getTime() - 1).toLocaleDateString('pt-BR')}`,
