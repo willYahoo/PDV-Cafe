@@ -631,6 +631,12 @@ Obrigado pela preferência! 🙏`
         }
         @media (max-width: 767px) {
           .pdv-header-desktop { display: none !important; }
+          .pdv-grid { gap: 10px !important; min-width: 0; }
+          .pdv-grid > div { min-width: 0; }
+          .pdv-grid > div > div { padding: 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }
+          .pdv-grid .product-card { min-height: 96px !important; padding: 10px !important; }
+          .pdv-grid [style*="max-height: 420px"] { max-height: 280px !important; }
+          .pdv-grid [style*="position: sticky"] { position: static !important; }
         }
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
