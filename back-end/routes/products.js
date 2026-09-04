@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Product = require('../models/Product');
+const Order = require('../models/Order');
 
 const router = express.Router();
 const units = ['un', 'kg', 'g', 'l', 'ml'];
@@ -16,6 +17,20 @@ router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => 
     if (search) query.$or = [{ nome: { $regex: search, $options: 'i' } }, { codigo: { $regex: search, $options: 'i' } }];
     if (categoria) query.categoria = categoria;
     res.json(await Product.find(query).sort({ nome: 1 }));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+  try {
+    const limite = Math.min(Math.max(Number(req.query.limite) || 8, 1), 20);
+    const ranking = await Order.aggregate([
+      { $match: { status: { $ne: 'cancelado' } } },
+      { $unwind: '$itens' },
+      { $group: { _id: '$itens.produtoId', quantidade: { $sum: '$itens.quantidade' } } },
+      { $sort: { quantidade: -1 } },
+      { $limit: limite },
+    ]);
+    res.json(ranking.map((item) => ({ produtoId: item._id, quantidade: item.quantidade })));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 

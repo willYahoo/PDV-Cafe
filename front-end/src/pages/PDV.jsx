@@ -16,7 +16,7 @@ const corCategoria = {
 };
 
 const grupos = ['Todos', 'Favoritos', 'Bebidas Quentes', 'Salgados', 'Doces', 'Bebidas geladas', 'Café da manhã'];
-const favoritos = ['cookie recheado', 'pão de queijo', 'café expresso', 'espresso', 'filtro do dia', 'cappuccino'];
+const normalizarTexto = (valor) => String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 // FIX: 'gelad' verificado ANTES de 'café/espresso' para classificar corretamente
 // "Café Gelado" / "Espresso Gelado" → Bebidas geladas (não Bebidas Quentes)
@@ -34,6 +34,7 @@ const precisaModificar = (produto) => grupoProduto(produto) === 'Bebidas Quentes
 
 export default function PDV() {
   const [produtos, setProdutos] = useState([]);
+  const [maisVendidos, setMaisVendidos] = useState([]);
   const [carrinho, setCarrinho] = useState([]);
   const [busca, setBusca] = useState('');
   const [clientes, setClientes] = useState([]);
@@ -44,6 +45,7 @@ export default function PDV() {
   const [modificadores, setModificadores] = useState({ tamanho: 'Médio', leite: 'Integral', acompanhamentos: [] });
   const [feedbackProduto, setFeedbackProduto] = useState(null);
   const [modalSucesso, setModalSucesso] = useState(null);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
   const selectClienteRef = useRef(null);
@@ -54,11 +56,12 @@ export default function PDV() {
 
   const carregarDados = async () => {
     try {
-      const [resProd, resCli] = await Promise.all([
-        api.get('/products'), api.get('/customers')
+      const [resProd, resCli, resMaisVendidos] = await Promise.all([
+        api.get('/products'), api.get('/customers'), api.get('/products/mais-vendidos?limite=8')
       ]);
       setProdutos(resProd.data);
       setClientes(resCli.data);
+      setMaisVendidos(resMaisVendidos.data);
     } catch {
       showToast('Erro ao carregar dados', 'error');
     }
@@ -292,13 +295,16 @@ Obrigado pela preferência! 🙏`
   };
 
 
-  const filtrados = produtos.filter(p =>
-    p.nome.toLowerCase().includes(busca.toLowerCase()) ||
-    String(p.codigo).toLowerCase().includes(busca.toLowerCase()) ||
-    p.categoria.toLowerCase().includes(busca.toLowerCase())
+  const termoBusca = normalizarTexto(busca);
+  const idsMaisVendidos = new Set(maisVendidos.map((item) => String(item.produtoId)));
+  const produtosMaisVendidos = maisVendidos
+    .map((item) => produtos.find((produto) => produto._id === String(item.produtoId)))
+    .filter(Boolean);
+  const filtrados = produtos.filter((produto) =>
+    !termoBusca || [produto.nome, produto.codigo, produto.categoria].some((campo) => normalizarTexto(campo).includes(termoBusca))
   ).filter((produto) => {
     if (grupoAtivo === 'Todos') return true;
-    if (grupoAtivo === 'Favoritos') return favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito));
+    if (grupoAtivo === 'Favoritos') return idsMaisVendidos.has(String(produto._id));
     return grupoProduto(produto) === grupoAtivo;
   });
 
@@ -310,9 +316,13 @@ Obrigado pela preferência! 🙏`
         <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>☕ Atendimento</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Monte o pedido e abra uma comanda.</p>
       </div>
+      <button type="button" className="pdv-mobile-cart-trigger" onClick={() => setMobileCartOpen(true)}>
+        <span>🛒 Carrinho</span>
+        <strong>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · R$ {total.toFixed(2).replace('.', ',')}</strong>
+      </button>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }} className="pdv-grid">
         {/* COLUNA PRODUTOS */}
-        <div>
+        <div className="pdv-products-column">
           <div style={{
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16, marginBottom: 16
@@ -360,12 +370,12 @@ Obrigado pela preferência! 🙏`
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
                 <div>
                   <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Mais pedidos</h3>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Um toque para os favoritos da manhã</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Mais vendidos no histórico</span>
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--accent-primary)', fontWeight: 700 }}>ATENDIMENTO RÁPIDO</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                {produtos.filter((produto) => grupoProduto(produto) !== 'Bebidas geladas' && favoritos.some((favorito) => produto.nome.toLowerCase().includes(favorito))).slice(0, 6).map((produto) => (
+                {produtosMaisVendidos.filter((produto) => grupoProduto(produto) !== 'Bebidas geladas').slice(0, 6).map((produto) => (
                   <button key={produto._id} onClick={() => selecionarProduto(produto)} style={{ padding: '11px 10px', minHeight: 58, textAlign: 'left', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     <strong style={{ display: 'block', fontSize: 12 }}>{produto.nome}</strong>
                     <span style={{ fontSize: 11, color: 'var(--accent-primary)' }}>R$ {produto.preco.toFixed(2).replace('.', ',')}</span>
@@ -440,7 +450,7 @@ Obrigado pela preferência! 🙏`
           </div>
         </div>
         {/* COLUNA CARRINHO */}
-        <div>
+        <div className={`pdv-cart-panel ${mobileCartOpen ? 'mobile-open' : ''}`}>
           <div style={{
             background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: 16, padding: 16, position: 'sticky', top: 16
@@ -455,6 +465,7 @@ Obrigado pela preferência! 🙏`
                   }}>{totalItens}</span>
                 )}
               </h3>
+              <button type="button" className="pdv-mobile-cart-close" onClick={() => setMobileCartOpen(false)} aria-label="Fechar carrinho">×</button>
             </div>
             {carrinho.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)', fontSize: 14 }}>
@@ -631,8 +642,13 @@ Obrigado pela preferência! 🙏`
         }
         @media (max-width: 767px) {
           .pdv-header-desktop { display: none !important; }
+          .pdv-mobile-cart-trigger { display: flex !important; }
           .pdv-grid { gap: 10px !important; min-width: 0; }
           .pdv-grid > div { min-width: 0; }
+          .pdv-cart-panel { display: none; }
+          .pdv-cart-panel.mobile-open { display: block; position: fixed; inset: 0; z-index: 1200; overflow-y: auto; padding: 12px; background: var(--bg-primary); }
+          .pdv-cart-panel.mobile-open > div { min-height: calc(100svh - 24px); border-radius: 14px !important; }
+          .pdv-mobile-cart-close { display: inline-flex !important; }
           .pdv-grid > div > div { padding: 12px !important; border-radius: 12px !important; margin-bottom: 10px !important; }
           .pdv-grid .product-card { min-height: 96px !important; padding: 10px !important; }
           .pdv-grid [style*="max-height: 420px"] { max-height: 280px !important; }
@@ -640,6 +656,10 @@ Obrigado pela preferência! 🙏`
         }
         .product-card:active { transform: scale(0.97); }
         .product-card-added { animation: item-added .35s ease; border-color: var(--accent-primary) !important; }
+        .pdv-mobile-cart-trigger, .pdv-mobile-cart-close { display: none; }
+        .pdv-mobile-cart-trigger { width: 100%; min-height: 50px; margin-bottom: 10px; padding: 10px 14px; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 12px; background: var(--accent-primary); color: #fff; font: inherit; font-size: 14px; cursor: pointer; box-shadow: var(--shadow-sm); }
+        .pdv-mobile-cart-trigger strong { font-size: 13px; white-space: nowrap; }
+        .pdv-mobile-cart-close { align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-tertiary); color: var(--text-primary); font-size: 24px; cursor: pointer; }
         @keyframes item-added { 50% { transform: scale(1.035); box-shadow: 0 0 0 4px var(--accent-light); } }
       `}</style>
     </div>

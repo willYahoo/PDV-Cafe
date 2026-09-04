@@ -117,6 +117,7 @@ export default function Comandas() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentError, setPaymentError] = useState(false);
   const [telefoneModal, setTelefoneModal] = useState('');
+  const [mobileView, setMobileView] = useState('list');
 
   // modal de sucesso pós-fechamento
   const [modalSucesso, setModalSucesso] = useState(null); // { pedido, comanda, telefone }
@@ -140,7 +141,7 @@ export default function Comandas() {
     event.preventDefault();
     try {
       const { data } = await api.post('/comandas', newCommand);
-      setNewCommand({ clienteNome: '', observacao: '' }); setSelected(data); showToast('Comanda aberta', 'success'); load();
+      setNewCommand({ clienteNome: '', observacao: '' }); setSelected(data); setMobileView('detail'); showToast('Comanda aberta', 'success'); load();
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao abrir comanda', 'error'); }
   };
 
@@ -203,16 +204,17 @@ export default function Comandas() {
       </form>
 
       <div className="comandas-columns">
-        <section className="comandas-card comandas-list-card">
+        <section className={`comandas-card comandas-list-card ${mobileView === 'detail' ? 'mobile-hidden' : ''}`}>
           <div className="comandas-card-heading"><div><h2>Em aberto</h2><p>Selecione uma comanda para editar.</p></div><span className="comandas-count">{comandas.length}</span></div>
           <div className="comandas-quick-products"><strong>Lançamento rápido</strong><div>{products.slice(0, 8).map((product) => <button key={product._id} type="button" onClick={() => { setProductId(product._id); setQuantity('1'); }} className={productId === product._id ? 'selected' : ''}>{product.nome}</button>)}</div></div>
-          {comandas.map((command) => <button className="comanda-select-button" key={command._id} onClick={() => setSelected(command)} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
+          {comandas.map((command) => <button className="comanda-select-button" key={command._id} onClick={() => { setSelected(command); setMobileView('detail'); }} style={{ display: 'block', width: '100%', textAlign: 'left', marginTop: 8, padding: 12, border: selected?._id === command._id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-secondary)' }}>
             <b>#{command.numero}</b><br /><small>{command.clienteNome} · {command.itens.length} itens</small>
           </button>)}
         </section>
 
-        <section className="comandas-card comandas-detail-card">
+        <section className={`comandas-card comandas-detail-card ${mobileView === 'list' ? 'mobile-hidden' : ''}`}>
           {!selected ? <p>Selecione ou abra uma comanda.</p> : <>
+            <button type="button" className="comandas-mobile-back" onClick={() => setMobileView('list')}>← Voltar para comandas</button>
             <h2 style={{ marginTop: 0 }}>Comanda #{selected.numero} <small style={{ fontWeight: 400, fontSize: 14, color: 'var(--text-secondary)' }}>— {selected.clienteNome}</small></h2>
             <form onSubmit={addItem} className="comandas-add-form">
               <select className="comandas-field" required value={productId} onChange={(e) => setProductId(e.target.value)}><option value="">Adicionar produto…</option>{products.map((product) => <option key={product._id} value={product._id}>{product.nome} — {formatMoney(product.preco)}</option>)}</select>
@@ -363,7 +365,8 @@ export default function Comandas() {
         .comandas-quick-products button { min-height: 42px; padding: 6px 8px; border: 1px solid var(--accent-border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); text-align: left; font-size: 11px; cursor: pointer; }
         .comandas-quick-products button.selected { border: 2px solid var(--accent-primary); color: var(--accent-primary); }
         @media (max-width: 760px) { .comandas-columns { grid-template-columns: 1fr; } .comandas-detail-card { min-width: 0; } .comandas-add-form { grid-template-columns: minmax(0, 1fr) 82px; } .comandas-add-form button { grid-column: 1 / -1; } }
-        @media (max-width: 520px) { .comandas-open-form, .comandas-card { padding: 14px; } .comandas-checkout { align-items: stretch; flex-direction: column; } .comandas-checkout .comandas-field, .comandas-checkout button { width: 100%; } }
+        .comandas-mobile-back { display: none; }
+        @media (max-width: 520px) { .comandas-open-form, .comandas-card { padding: 14px; } .comandas-checkout { align-items: stretch; flex-direction: column; position: sticky; bottom: 0; padding: 14px 0 max(14px, env(safe-area-inset-bottom)); background: var(--bg-secondary); } .comandas-checkout .comandas-field, .comandas-checkout button { width: 100%; } .comandas-mobile-back { display: inline-flex; min-height: 38px; align-items: center; margin-bottom: 12px; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 9px; background: var(--bg-tertiary); color: var(--text-secondary); font: inherit; font-size: 12px; font-weight: 700; } .comandas-list-card.mobile-hidden, .comandas-detail-card.mobile-hidden { display: none; } }
       `}</style>
     </div>
   );
