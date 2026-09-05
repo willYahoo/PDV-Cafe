@@ -146,20 +146,23 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador'), async (
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
     const telefone = String(req.body.telefone || '').replace(/\D/g, '');
+    const nome = String(req.body.nome || '').trim();
     if (!comanda || !telefone) throw new Error('Dados do cliente inválidos');
 
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
     customer = customer || await Customer.findOne({ telefone }).session(session);
     if (customer) {
-      if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
+      if (nome) customer.nome = nome;
+      else if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
       customer.telefone = telefone;
       await customer.save({ session });
     } else {
-      customer = new Customer({ nome: comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
+      customer = new Customer({ nome: nome || comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
       await customer.save({ session });
     }
 
     comanda.clienteId = customer.id;
+    if (nome) comanda.clienteNome = nome;
     await comanda.save({ session });
     const order = comanda.pedidoId ? await Order.findByIdAndUpdate(comanda.pedidoId, { clienteId: customer.id, clienteNome: customer.nome, clienteTelefone: telefone }, { new: true, session }) : null;
     await session.commitTransaction();
@@ -185,15 +188,17 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     const total = money(subtotal - discount);
     const creditoLoja = metodoPagamento === 'credito_loja';
     const telefone = String(req.body.telefone || '').replace(/\D/g, '');
+    const nome = String(req.body.nome || '').trim();
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
     if (telefone) {
       customer = customer || await Customer.findOne({ telefone }).session(session);
       if (customer) {
-        if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
+        if (nome) customer.nome = nome;
+        else if (comanda.clienteNome && comanda.clienteNome !== 'Cliente não identificado') customer.nome = comanda.clienteNome;
         customer.telefone = telefone;
         await customer.save({ session });
       } else {
-        customer = new Customer({ nome: comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
+        customer = new Customer({ nome: nome || comanda.clienteNome || 'Cliente não identificado', telefone, createdBy: req.user.id });
         await customer.save({ session });
       }
     }
@@ -203,7 +208,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       desconto: discount,
       total,
       clienteId: customer?.id || comanda.clienteId,
-      clienteNome: comanda.clienteNome,
+      clienteNome: customer?.nome || comanda.clienteNome,
       clienteTelefone: customer?.telefone || telefone,
       atendente: req.user.username,
       comandaId: comanda.id,
@@ -214,6 +219,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     if (customer) {
       await Customer.findByIdAndUpdate(customer.id, { $inc: { cafesFidelidade: 1 } }, { session });
       comanda.clienteId = customer.id;
+      if (nome) comanda.clienteNome = nome;
     }
     comanda.status = 'fechada'; comanda.pedidoId = order.id;
     await comanda.save({ session });

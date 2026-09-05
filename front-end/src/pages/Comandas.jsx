@@ -117,10 +117,11 @@ export default function Comandas() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [paymentError, setPaymentError] = useState(false);
   const [telefoneModal, setTelefoneModal] = useState('');
+  const [nomeModal, setNomeModal] = useState('');
   const [mobileView, setMobileView] = useState('list');
 
   // modal de sucesso pós-fechamento
-  const [modalSucesso, setModalSucesso] = useState(null); // { pedido, comanda, telefone }
+  const [modalSucesso, setModalSucesso] = useState(null); // { pedido, comanda, telefone, nome }
 
   const { showToast } = useToast();
 
@@ -169,6 +170,7 @@ export default function Comandas() {
     setPaymentMethod('');
     setPaymentError(false);
     setTelefoneModal('');
+    setNomeModal(selected.clienteNome || '');
     setModalFechamento(true);
   };
 
@@ -176,10 +178,10 @@ export default function Comandas() {
     if (!paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     const comandaFechada = selected;
     try {
-      const { data } = await api.post(`/comandas/${selected._id}/fechar`, { desconto: Number(discount), metodoPagamento: paymentMethod, telefone: telefoneModal });
+      const { data } = await api.post(`/comandas/${selected._id}/fechar`, { desconto: Number(discount), metodoPagamento: paymentMethod, telefone: telefoneModal, nome: nomeModal });
       setModalFechamento(false);
       setDiscount('0'); setPaymentMethod(''); setPaymentError(false);
-      setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal });
+      setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal, nome: nomeModal });
       showToast(`Comanda #${comandaFechada.numero} fechada → Pedido #${data.pedido.numero}`, 'success');
       load();
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao fechar comanda', 'error'); }
@@ -188,7 +190,7 @@ export default function Comandas() {
   const enviarComprovante = async () => {
     if (modalSucesso?.telefone) {
       try {
-        await api.patch(`/comandas/${modalSucesso.comanda._id}/cliente`, { telefone: modalSucesso.telefone });
+        await api.patch(`/comandas/${modalSucesso.comanda._id}/cliente`, { telefone: modalSucesso.telefone, nome: modalSucesso.nome });
       } catch { /* mantém o envio do comprovante mesmo se o cadastro falhar */ }
     }
     await enviarWhatsApp(modalSucesso.pedido, modalSucesso.comanda, modalSucesso.telefone);
@@ -280,6 +282,16 @@ export default function Comandas() {
               </select>
             </div>
 
+            {/* nome do cliente */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                👤 Nome do cliente <span style={{ fontWeight: 400 }}>(opcional)</span>
+              </label>
+              <input type="text" placeholder="Nome do cliente" value={nomeModal} onChange={e => setNomeModal(e.target.value)}
+                className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* telefone do cliente */}
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
                 📱 Celular do cliente <span style={{ fontWeight: 400 }}>(opcional — salva nome e telefone no cadastro)</span>
@@ -313,11 +325,30 @@ export default function Comandas() {
             {!modalSucesso.telefone && (
               <div style={{ marginBottom: 16, textAlign: 'left' }}>
                 <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                  👤 Nome do cliente
+                </label>
+                <input type="text" placeholder="Nome do cliente"
+                  value={modalSucesso.nome || ''}
+                  onChange={e => setModalSucesso(prev => ({ ...prev, nome: e.target.value }))}
+                  className="comandas-field" style={{ width: '100%', boxSizing: 'border-box', marginBottom: 8 }} />
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
                   📱 WhatsApp para enviar comprovante
                 </label>
                 <input type="tel" placeholder="(00) 00000-0000"
                   value={modalSucesso.telefone || ''}
                   onChange={e => setModalSucesso(prev => ({ ...prev, telefone: e.target.value }))}
+                  className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
+              </div>
+            )}
+
+            {modalSucesso.telefone && !modalSucesso.nome && (
+              <div style={{ marginBottom: 16, textAlign: 'left' }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                  👤 Nome do cliente (opcional)
+                </label>
+                <input type="text" placeholder="Nome do cliente"
+                  value={modalSucesso.nome || ''}
+                  onChange={e => setModalSucesso(prev => ({ ...prev, nome: e.target.value }))}
                   className="comandas-field" style={{ width: '100%', boxSizing: 'border-box' }} />
               </div>
             )}
