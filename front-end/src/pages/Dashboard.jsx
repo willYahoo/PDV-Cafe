@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
+import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const labels = { dia: 'Hoje', semana: 'Esta semana', mes: 'Este mês' };
@@ -19,6 +20,8 @@ export default function Dashboard() {
   const [dataFim, setDataFim] = useState('');
   const [carregandoComandas, setCarregandoComandas] = useState(false);
   const [comandaSelecionada, setComandaSelecionada] = useState(null);
+  const [telefoneComanda, setTelefoneComanda] = useState('');
+  const [nomeComanda, setNomeComanda] = useState('');
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -38,7 +41,11 @@ export default function Dashboard() {
       if (!item) return;
       const numero = item.querySelector('strong')?.textContent.replace('#', '').trim();
       const comanda = comandas.find((registro) => registro.numero === numero);
-      if (comanda) setComandaSelecionada(comanda);
+      if (comanda) {
+        setComandaSelecionada(comanda);
+        setNomeComanda(comanda.clienteNome || '');
+        setTelefoneComanda('');
+      }
     };
     document.addEventListener('click', selecionarComanda);
     return () => document.removeEventListener('click', selecionarComanda);
@@ -83,6 +90,31 @@ export default function Dashboard() {
     return grupos;
   }, {});
   const formatarDataComandas = (chave) => new Date(`${chave}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const pedidoDaComanda = comandaSelecionada ? {
+    numero: comandaSelecionada.numero,
+    createdAt: comandaSelecionada.createdAt,
+    clienteNome: nomeComanda || comandaSelecionada.clienteNome,
+    atendente: comandaSelecionada.atendente,
+    itens: comandaSelecionada.itens || [],
+    subtotal: (comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0),
+    total: (comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0),
+    pagamentos: [],
+  } : null;
+  const imprimirComanda = () => {
+    const janela = window.open('', '_blank', 'width=420,height=700');
+    janela.document.write(buildNotaVendaHtml(pedidoDaComanda, { comandaNumero: comandaSelecionada.numero, titulo: 'VISUALIZAÇÃO DA COMANDA' }));
+    janela.document.close();
+  };
+  const enviarComandaWhatsApp = async () => {
+    if (!telefoneComanda.trim()) return showToast('Informe o telefone para enviar pelo WhatsApp', 'warning');
+    try {
+      await api.patch(`/comandas/${comandaSelecionada._id}/cliente`, { telefone: telefoneComanda, nome: nomeComanda });
+      const comandaAtualizada = { ...comandaSelecionada, clienteNome: nomeComanda || comandaSelecionada.clienteNome };
+      setComandaSelecionada(comandaAtualizada);
+      await compartilharNotaWhatsApp({ ...pedidoDaComanda, clienteNome: comandaAtualizada.clienteNome }, { comandaNumero: comandaAtualizada.numero, titulo: 'VISUALIZAÇÃO DA COMANDA' }, telefoneComanda);
+      showToast('Cliente salvo e comprovante enviado pelo WhatsApp', 'success');
+    } catch (error) { showToast(error.response?.data?.msg || 'Não foi possível salvar o cliente ou enviar o WhatsApp', 'error'); }
+  };
 
   const imprimirRelatorioMes = () => {
     const pagamentos = relatorioMes.pagamentos.map((pagamento) => `<div class="linha"><span>${paymentLabels[pagamento.tipo] || pagamento.tipo}</span><b>R$ ${money(pagamento.total)}</b></div>`).join('');
@@ -123,7 +155,7 @@ export default function Dashboard() {
     <section className="dashboard-customers"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">BASE DE CLIENTES</span><h2>Clientes cadastrados</h2><p>Nome e telefone para futuras ações de marketing.</p></div><div className="dashboard-report-actions"><span className="dashboard-orders-count">{relatorioClientes.totalCadastrados || data.clientesCadastrados || 0}</span><button className="dashboard-print-button" onClick={exportarClientesMailing}>⬇️ Exportar</button><button className="dashboard-print-button" onClick={imprimirRelatorioClientes}>🖨️ Imprimir</button><button className="dashboard-toggle-button" onClick={() => alternarQuadro('clientes')}>{quadrosAbertos.clientes ? 'Ocultar' : 'Mostrar'}</button></div></div>{quadrosAbertos.clientes && <div className="dashboard-customer-list">{relatorioClientes.clientes.length ? relatorioClientes.clientes.map((cliente) => <div className="dashboard-customer" key={String(cliente.id)}><strong>{cliente.nome}</strong><span>{cliente.telefone || 'Telefone não informado'}</span></div>) : <p className="dashboard-empty-orders">Nenhum cliente cadastrado.</p>}</div>}</section>
     <section className="dashboard-monthly"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">FECHAMENTO DO MÊS</span><h2>Relatório mensal completo</h2><p>{relatorioMes.periodo || 'Período atual'} · vendas, recebimentos e pendências.</p></div><div className="dashboard-report-actions"><button className="dashboard-print-button" onClick={imprimirRelatorioMes}>🖨️ Imprimir relatório</button><button className="dashboard-toggle-button" onClick={() => alternarQuadro('mensal')}>{quadrosAbertos.mensal ? 'Ocultar' : 'Mostrar'}</button></div></div>{quadrosAbertos.mensal && <><div className="dashboard-monthly-summary"><div><small>Vendas</small><b>{money(relatorioMes.total)}</b></div><div><small>Recebido</small><b className="sales-received">{money(relatorioMes.recebido)}</b></div><div><small>A receber</small><b className="sales-pending">{money(relatorioMes.pendente)}</b></div><div><small>Pedidos</small><b>{relatorioMes.pedidos}</b></div><div><small>Clientes</small><b>{relatorioMes.clientes}</b></div></div><div className="dashboard-monthly-columns"><div><h3>Formas de pagamento</h3>{relatorioMes.pagamentos.length ? relatorioMes.pagamentos.map((pagamento) => <div className="dashboard-monthly-row" key={pagamento.tipo}><span>{paymentLabels[pagamento.tipo] || pagamento.tipo}</span><b>{money(pagamento.total)}</b></div>) : <p className="dashboard-empty-orders">Nenhum pagamento registrado.</p>}</div><div><h3>Produtos mais vendidos</h3>{relatorioMes.produtos.length ? relatorioMes.produtos.slice(0, 5).map((produto) => <div className="dashboard-monthly-row" key={produto.nome}><span>{produto.quantidade}x {produto.nome}</span><b>{money(produto.total)}</b></div>) : <p className="dashboard-empty-orders">Nenhuma venda registrada.</p>}</div></div></>}</section>
     <section className="dashboard-orders"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ACOMPANHAMENTO DO DIA</span><h2>Pedidos e vendas de hoje</h2><p>Resumo financeiro e movimento mais recente da casa.</p></div><div className="dashboard-report-actions"><strong className="dashboard-sales-total">{money(vendasHoje.total)}</strong><span className="dashboard-orders-count">{pedidosHoje.length}</span><button className="dashboard-toggle-button" onClick={() => alternarQuadro('pedidos')}>{quadrosAbertos.pedidos ? 'Ocultar' : 'Mostrar'}</button></div></div>{quadrosAbertos.pedidos && <><div className="dashboard-sales-summary"><div><small>Pedidos</small><b>{vendasHoje.pedidos}</b></div><div><small>Itens vendidos</small><b>{vendasHoje.itens}</b></div><div><small>Ticket médio</small><b>{money(vendasHoje.pedidos ? vendasHoje.total / vendasHoje.pedidos : 0)}</b></div><div><small>Recebido</small><b className="sales-received">{money(vendasHoje.recebido)}</b></div><div><small>A receber</small><b className="sales-pending">{money(vendasHoje.pendente)}</b></div></div>{pedidosHoje.length ? <div className="dashboard-orders-list">{pedidosHoje.map((pedido) => <div className="dashboard-order" key={pedido._id}><div><strong>#{pedido.numero}</strong><span>{pedido.clienteNome || 'Cliente não identificado'}</span><small>{new Date(pedido.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {pedido.itens?.length || 0} itens</small></div><div><b>{money(pedido.total)}</b><span className={`dashboard-order-status status-${pedido.status}`}>{pedido.status}</span></div></div>)}</div> : <p className="dashboard-empty-orders">Nenhum pedido registrado hoje.</p>}</>}</section>
-    {comandaSelecionada && <div className="dashboard-comanda-modal" onClick={() => setComandaSelecionada(null)}><div className="dashboard-comanda-receipt" onClick={(event) => event.stopPropagation()}><div className="dashboard-receipt-header"><strong>SABOR DE ABRAÇO</strong><span>COMANDA #{comandaSelecionada.numero}</span><small>{new Date(comandaSelecionada.createdAt).toLocaleString('pt-BR')}</small></div><div className="dashboard-receipt-meta"><div>Cliente: <b>{comandaSelecionada.clienteNome || 'Cliente não identificado'}</b></div><div>Atendente: <b>{comandaSelecionada.atendente || 'Não informado'}</b></div>{comandaSelecionada.observacao && <div>Observação: <b>{comandaSelecionada.observacao}</b></div>}</div><div className="dashboard-receipt-items">{(comandaSelecionada.itens || []).map((item) => <div className="dashboard-receipt-item" key={item._id}><span>{item.quantidade}x {item.nome}<small>{money(item.precoUnitario)} cada</small></span><b>{money(Number(item.precoUnitario || 0) * Number(item.quantidade || 0))}</b></div>)}</div><div className="dashboard-receipt-total"><span>TOTAL</span><b>{money((comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0))}</b></div><div className="dashboard-receipt-status">Status: {statusLabels[comandaSelecionada.status] || comandaSelecionada.status}</div><button className="dashboard-toggle-button" onClick={() => setComandaSelecionada(null)}>Fechar</button></div></div>}
+    {comandaSelecionada && <div className="dashboard-comanda-modal" onClick={() => setComandaSelecionada(null)}><div className="dashboard-comanda-receipt" onClick={(event) => event.stopPropagation()}><div className="dashboard-receipt-header"><strong>SABOR DE ABRAÇO</strong><span>COMANDA #{comandaSelecionada.numero}</span><small>{new Date(comandaSelecionada.createdAt).toLocaleString('pt-BR')}</small></div><div className="dashboard-receipt-meta"><div>Cliente: <b>{comandaSelecionada.clienteNome || 'Cliente não identificado'}</b></div><div>Atendente: <b>{comandaSelecionada.atendente || 'Não informado'}</b></div>{comandaSelecionada.observacao && <div>Observação: <b>{comandaSelecionada.observacao}</b></div>}</div><div className="dashboard-receipt-items">{(comandaSelecionada.itens || []).map((item) => <div className="dashboard-receipt-item" key={item._id}><span>{item.quantidade}x {item.nome}<small>{money(item.precoUnitario)} cada</small></span><b>{money(Number(item.precoUnitario || 0) * Number(item.quantidade || 0))}</b></div>)}</div><div className="dashboard-receipt-total"><span>TOTAL</span><b>{money((comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0))}</b></div><div className="dashboard-receipt-status">Status: {statusLabels[comandaSelecionada.status] || comandaSelecionada.status}</div><div className="dashboard-receipt-contact"><label>Nome do cliente<input value={nomeComanda} onChange={(event) => setNomeComanda(event.target.value)} placeholder="Nome do cliente" /></label><label>Telefone para WhatsApp<input type="tel" value={telefoneComanda} onChange={(event) => setTelefoneComanda(event.target.value)} placeholder="(00) 00000-0000" /></label></div><div className="dashboard-receipt-actions"><button className="dashboard-receipt-print" onClick={imprimirComanda}>🖨️ Imprimir</button><button className="dashboard-receipt-whatsapp" onClick={enviarComandaWhatsApp}>💬 WhatsApp</button></div><button className="dashboard-toggle-button" onClick={() => setComandaSelecionada(null)}>Fechar</button></div></div>}
     <style>{`
       .dashboard-page { color: var(--text-primary); }
       .dashboard-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:22px; }
@@ -183,6 +215,13 @@ export default function Dashboard() {
       .dashboard-receipt-item b, .dashboard-receipt-total b { white-space:nowrap; }
       .dashboard-receipt-total { margin-top:4px; border-top:2px solid var(--text-primary); font-size:16px; font-weight:700; }
       .dashboard-receipt-status { margin:8px 0 18px; color:var(--text-secondary); font-size:11px; text-align:center; }
+      .dashboard-receipt-contact { display:grid; gap:9px; margin-bottom:14px; font-family:inherit; }
+      .dashboard-receipt-contact label { display:grid; gap:4px; color:var(--text-secondary); font-size:11px; font-weight:700; }
+      .dashboard-receipt-contact input { width:100%; box-sizing:border-box; min-height:38px; padding:8px 10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-tertiary); color:var(--text-primary); font-family:inherit; }
+      .dashboard-receipt-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px; }
+      .dashboard-receipt-actions button { min-height:42px; border:0; border-radius:8px; color:#fff; font-weight:700; cursor:pointer; }
+      .dashboard-receipt-print { background:var(--brand-brown, #7c4b1e); }
+      .dashboard-receipt-whatsapp { background:#25d366; }
       .dashboard-comanda-modal .dashboard-toggle-button { width:100%; }
       .dashboard-stock { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
       .dashboard-customers, .dashboard-sales { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
