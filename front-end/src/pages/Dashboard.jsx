@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
   const [carregandoComandas, setCarregandoComandas] = useState(false);
+  const [comandaSelecionada, setComandaSelecionada] = useState(null);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -30,6 +31,18 @@ export default function Dashboard() {
       })
       .catch((error) => showToast(error.response?.data?.msg || 'Não foi possível carregar o dashboard', 'error'));
   }, [user?.role]);
+
+  useEffect(() => {
+    const selecionarComanda = (event) => {
+      const item = event.target.closest('.dashboard-comanda');
+      if (!item) return;
+      const numero = item.textContent.match(/#([^\s]+)/)?.[1];
+      const comanda = comandas.find((registro) => registro.numero === numero);
+      if (comanda) setComandaSelecionada(comanda);
+    };
+    document.addEventListener('click', selecionarComanda);
+    return () => document.removeEventListener('click', selecionarComanda);
+  }, [comandas]);
 
   if (user?.role !== 'admin') return <Navigate to="/pdv" replace />;
 
@@ -110,6 +123,7 @@ export default function Dashboard() {
     <section className="dashboard-customers"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">BASE DE CLIENTES</span><h2>Clientes cadastrados</h2><p>Nome e telefone para futuras ações de marketing.</p></div><div className="dashboard-report-actions"><span className="dashboard-orders-count">{relatorioClientes.totalCadastrados || data.clientesCadastrados || 0}</span><button className="dashboard-print-button" onClick={exportarClientesMailing}>⬇️ Exportar</button><button className="dashboard-print-button" onClick={imprimirRelatorioClientes}>🖨️ Imprimir</button><button className="dashboard-toggle-button" onClick={() => alternarQuadro('clientes')}>{quadrosAbertos.clientes ? 'Ocultar' : 'Mostrar'}</button></div></div>{quadrosAbertos.clientes && <div className="dashboard-customer-list">{relatorioClientes.clientes.length ? relatorioClientes.clientes.map((cliente) => <div className="dashboard-customer" key={String(cliente.id)}><strong>{cliente.nome}</strong><span>{cliente.telefone || 'Telefone não informado'}</span></div>) : <p className="dashboard-empty-orders">Nenhum cliente cadastrado.</p>}</div>}</section>
     <section className="dashboard-monthly"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">FECHAMENTO DO MÊS</span><h2>Relatório mensal completo</h2><p>{relatorioMes.periodo || 'Período atual'} · vendas, recebimentos e pendências.</p></div><div className="dashboard-report-actions"><button className="dashboard-print-button" onClick={imprimirRelatorioMes}>🖨️ Imprimir relatório</button><button className="dashboard-toggle-button" onClick={() => alternarQuadro('mensal')}>{quadrosAbertos.mensal ? 'Ocultar' : 'Mostrar'}</button></div></div>{quadrosAbertos.mensal && <><div className="dashboard-monthly-summary"><div><small>Vendas</small><b>{money(relatorioMes.total)}</b></div><div><small>Recebido</small><b className="sales-received">{money(relatorioMes.recebido)}</b></div><div><small>A receber</small><b className="sales-pending">{money(relatorioMes.pendente)}</b></div><div><small>Pedidos</small><b>{relatorioMes.pedidos}</b></div><div><small>Clientes</small><b>{relatorioMes.clientes}</b></div></div><div className="dashboard-monthly-columns"><div><h3>Formas de pagamento</h3>{relatorioMes.pagamentos.length ? relatorioMes.pagamentos.map((pagamento) => <div className="dashboard-monthly-row" key={pagamento.tipo}><span>{paymentLabels[pagamento.tipo] || pagamento.tipo}</span><b>{money(pagamento.total)}</b></div>) : <p className="dashboard-empty-orders">Nenhum pagamento registrado.</p>}</div><div><h3>Produtos mais vendidos</h3>{relatorioMes.produtos.length ? relatorioMes.produtos.slice(0, 5).map((produto) => <div className="dashboard-monthly-row" key={produto.nome}><span>{produto.quantidade}x {produto.nome}</span><b>{money(produto.total)}</b></div>) : <p className="dashboard-empty-orders">Nenhuma venda registrada.</p>}</div></div></>}</section>
     <section className="dashboard-orders"><div className="dashboard-section-heading"><div><span className="dashboard-eyebrow">ACOMPANHAMENTO DO DIA</span><h2>Pedidos e vendas de hoje</h2><p>Resumo financeiro e movimento mais recente da casa.</p></div><div className="dashboard-report-actions"><strong className="dashboard-sales-total">{money(vendasHoje.total)}</strong><span className="dashboard-orders-count">{pedidosHoje.length}</span><button className="dashboard-toggle-button" onClick={() => alternarQuadro('pedidos')}>{quadrosAbertos.pedidos ? 'Ocultar' : 'Mostrar'}</button></div></div>{quadrosAbertos.pedidos && <><div className="dashboard-sales-summary"><div><small>Pedidos</small><b>{vendasHoje.pedidos}</b></div><div><small>Itens vendidos</small><b>{vendasHoje.itens}</b></div><div><small>Ticket médio</small><b>{money(vendasHoje.pedidos ? vendasHoje.total / vendasHoje.pedidos : 0)}</b></div><div><small>Recebido</small><b className="sales-received">{money(vendasHoje.recebido)}</b></div><div><small>A receber</small><b className="sales-pending">{money(vendasHoje.pendente)}</b></div></div>{pedidosHoje.length ? <div className="dashboard-orders-list">{pedidosHoje.map((pedido) => <div className="dashboard-order" key={pedido._id}><div><strong>#{pedido.numero}</strong><span>{pedido.clienteNome || 'Cliente não identificado'}</span><small>{new Date(pedido.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {pedido.itens?.length || 0} itens</small></div><div><b>{money(pedido.total)}</b><span className={`dashboard-order-status status-${pedido.status}`}>{pedido.status}</span></div></div>)}</div> : <p className="dashboard-empty-orders">Nenhum pedido registrado hoje.</p>}</>}</section>
+    {comandaSelecionada && <div className="dashboard-comanda-modal" onClick={() => setComandaSelecionada(null)}><div className="dashboard-comanda-receipt" onClick={(event) => event.stopPropagation()}><div className="dashboard-receipt-header"><strong>SABOR DE ABRAÇO</strong><span>COMANDA #{comandaSelecionada.numero}</span><small>{new Date(comandaSelecionada.createdAt).toLocaleString('pt-BR')}</small></div><div className="dashboard-receipt-meta"><div>Cliente: <b>{comandaSelecionada.clienteNome || 'Cliente não identificado'}</b></div><div>Atendente: <b>{comandaSelecionada.atendente || 'Não informado'}</b></div>{comandaSelecionada.observacao && <div>Observação: <b>{comandaSelecionada.observacao}</b></div>}</div><div className="dashboard-receipt-items">{(comandaSelecionada.itens || []).map((item) => <div className="dashboard-receipt-item" key={item._id}><span>{item.quantidade}x {item.nome}<small>{money(item.precoUnitario)} cada</small></span><b>{money(Number(item.precoUnitario || 0) * Number(item.quantidade || 0))}</b></div>)}</div><div className="dashboard-receipt-total"><span>TOTAL</span><b>{money((comandaSelecionada.itens || []).reduce((total, item) => total + Number(item.precoUnitario || 0) * Number(item.quantidade || 0), 0))}</b></div><div className="dashboard-receipt-status">Status: {statusLabels[comandaSelecionada.status] || comandaSelecionada.status}</div><button className="dashboard-toggle-button" onClick={() => setComandaSelecionada(null)}>Fechar</button></div></div>}
     <style>{`
       .dashboard-page { color: var(--text-primary); }
       .dashboard-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:22px; }
@@ -141,6 +155,8 @@ export default function Dashboard() {
       .dashboard-comandas-day summary span { color:var(--text-secondary); font-size:12px; }
       .dashboard-comandas-day-list { display:grid; gap:8px; padding:0 8px 8px; }
       .dashboard-comanda { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px; border:1px solid var(--border-light); border-radius:10px; background:var(--bg-tertiary); }
+      .dashboard-comanda { cursor:pointer; }
+      .dashboard-comanda:hover { border-color:var(--accent-primary); }
       .dashboard-comanda > div { display:flex; align-items:center; gap:10px; min-width:0; }
       .dashboard-comanda > div:first-child { flex:1; }
       .dashboard-comanda strong, .dashboard-comanda b { color:var(--accent-primary); }
@@ -150,6 +166,24 @@ export default function Dashboard() {
       .dashboard-comanda-status { padding:4px 8px; border-radius:20px; background:var(--accent-light); color:var(--accent-primary) !important; font-size:10px !important; font-weight:800; }
       .comanda-status-fechada { background:rgba(22,163,74,.12); color:var(--success-bg) !important; }
       .comanda-status-cancelada { background:rgba(220,38,38,.12); color:var(--error-bg) !important; }
+      .dashboard-comanda-modal { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:18px; background:rgba(20,14,10,.62); }
+      .dashboard-comanda-receipt { width:100%; max-width:390px; max-height:calc(100vh - 36px); overflow:auto; padding:24px 20px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-secondary); color:var(--text-primary); box-shadow:var(--shadow-lg); font-family:'Courier New', monospace; }
+      .dashboard-receipt-header { display:grid; gap:4px; padding-bottom:14px; border-bottom:1px dashed var(--border-color); text-align:center; }
+      .dashboard-receipt-header::before { content:''; display:block; width:52px; height:52px; margin:0 auto 4px; background:url('/Abraco1.png') center/contain no-repeat; }
+      .dashboard-receipt-header strong { font-size:17px; }
+      .dashboard-receipt-header span { font-size:14px; font-weight:700; }
+      .dashboard-receipt-header small, .dashboard-receipt-meta { color:var(--text-secondary); font-size:11px; }
+      .dashboard-receipt-meta { display:grid; gap:5px; padding:14px 0; border-bottom:1px dashed var(--border-color); }
+      .dashboard-receipt-meta b { color:var(--text-primary); }
+      .dashboard-receipt-items { padding:8px 0; }
+      .dashboard-receipt-item, .dashboard-receipt-total { display:flex; justify-content:space-between; gap:12px; padding:8px 0; }
+      .dashboard-receipt-item { border-bottom:1px dotted var(--border-light); font-size:12px; }
+      .dashboard-receipt-item span { display:grid; gap:3px; }
+      .dashboard-receipt-item small { color:var(--text-secondary); font-size:10px; }
+      .dashboard-receipt-item b, .dashboard-receipt-total b { white-space:nowrap; }
+      .dashboard-receipt-total { margin-top:4px; border-top:2px solid var(--text-primary); font-size:16px; font-weight:700; }
+      .dashboard-receipt-status { margin:8px 0 18px; color:var(--text-secondary); font-size:11px; text-align:center; }
+      .dashboard-comanda-modal .dashboard-toggle-button { width:100%; }
       .dashboard-stock { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
       .dashboard-customers, .dashboard-sales { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
       .dashboard-monthly { margin-top:16px; padding:18px; background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:16px; box-shadow:var(--shadow-sm); }
