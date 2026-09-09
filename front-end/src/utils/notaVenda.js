@@ -18,6 +18,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
   if (!pedido) return '';
   const pago = totalPago(pedido);
   const falta = Math.max(0, Number(pedido.total || 0) - pago);
+  const utilizacaoInterna = Boolean(pedido.utilizacaoInterna);
   const itens = (pedido.itens || []).map((item) => `
     <tr>
       <td>${textoSeguro(item.quantidade)}x</td>
@@ -67,6 +68,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
     <div class="totais">
       <div class="linha"><span>Subtotal:</span><span>R$ ${dinheiro(pedido.subtotal || pedido.total)}</span></div>
       ${Number(pedido.desconto) > 0 ? `<div class="linha"><span>Desconto:</span><span>-R$ ${dinheiro(pedido.desconto)}</span></div>` : ''}
+      ${utilizacaoInterna ? `<div class="linha"><span>Uso interno:</span><span>SIM</span></div>` : ''}
       <div class="linha total"><span>TOTAL:</span><span>R$ ${dinheiro(pedido.total)}</span></div>
       ${pagamentos ? `<div class="separador"></div><div class="bold">PAGAMENTOS</div>${pagamentos}` : ''}
       ${pago > 0 && falta > 0 ? `<div class="linha pendencia"><span>FALTA:</span><span>R$ ${dinheiro(falta)}</span></div>` : ''}
@@ -102,11 +104,12 @@ function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VEND
   const falta = Math.max(0, Number(pedido.total || 0) - pago);
   const largura = 22;
   const linha = (label, valor) => `${label.padEnd(largura, ' ')}${valor}`;
+  const utilizacaoInterna = Boolean(pedido.utilizacaoInterna);
   const itens = (pedido.itens || []).map((item) => {
     const nome = item.modificadores?.length ? `${item.nome} (${item.modificadores.join(' | ')})` : item.nome;
     return `${item.quantidade}x ${nome}\n${' '.repeat(3)}${linha('Unitario:', `R$ ${dinheiro(item.precoUnitario)}`)}\n${' '.repeat(3)}${linha('Total:', `R$ ${dinheiro(Number(item.quantidade) * Number(item.precoUnitario))}`)}`;
   }).join('\n');
   const pagamentos = (pedido.pagamentos || []).map((pagamento) => `- ${linha(pagamentoLabels[pagamento.tipo] || pagamento.tipo, `R$ ${dinheiro(pagamento.valorRecebido)}`)}`).join('\n');
 
-  return `*SABOR DE ABRAÇO*\n${titulo}\n--------------------------------\n${linha('Pedido:', `#${pedido.numero}`)}${comandaNumero ? `\n${linha('Comanda:', `#${comandaNumero}`)}` : ''}\n${linha('Data:', new Date(pedido.createdAt || Date.now()).toLocaleString('pt-BR'))}\n${linha('Cliente:', pedido.clienteNome || 'Cliente não identificado')}${pedido.atendente ? `\n${linha('Atendente:', pedido.atendente)}` : ''}\n--------------------------------\n*ITENS DO PEDIDO*\n${itens}\n--------------------------------\n${linha('Subtotal:', `R$ ${dinheiro(pedido.subtotal || pedido.total)}`)}${Number(pedido.desconto) > 0 ? `\n${linha('Desconto:', `-R$ ${dinheiro(pedido.desconto)}`)}` : ''}\n*${linha('TOTAL:', `R$ ${dinheiro(pedido.total)}`)}*${pagamentos ? `\n--------------------------------\n*PAGAMENTOS*\n${pagamentos}` : ''}${pago > 0 && falta > 0 ? `\n${linha('FALTA:', `R$ ${dinheiro(falta)}`)}` : ''}\n--------------------------------\n*Sabor de Abraço*\nAgradece a Preferência!\nVolte sempre!`;
+  return `*SABOR DE ABRAÇO*\n${titulo}\n--------------------------------\n${linha('Pedido:', `#${pedido.numero}`)}${comandaNumero ? `\n${linha('Comanda:', `#${comandaNumero}`)}` : ''}\n${linha('Data:', new Date(pedido.createdAt || Date.now()).toLocaleString('pt-BR'))}\n${linha('Cliente:', pedido.clienteNome || 'Cliente não identificado')}${pedido.atendente ? `\n${linha('Atendente:', pedido.atendente)}` : ''}\n--------------------------------\n*ITENS DO PEDIDO*\n${itens}\n--------------------------------\n${linha('Subtotal:', `R$ ${dinheiro(pedido.subtotal || pedido.total)}`)}${Number(pedido.desconto) > 0 ? `\n${linha('Desconto:', `-R$ ${dinheiro(pedido.desconto)}`)}` : ''}${utilizacaoInterna ? `\n${linha('Uso interno:', 'SIM')}` : ''}\n*${linha('TOTAL:', `R$ ${dinheiro(pedido.total)}`)}*${pagamentos ? `\n--------------------------------\n*PAGAMENTOS*\n${pagamentos}` : ''}${pago > 0 && falta > 0 ? `\n${linha('FALTA:', `R$ ${dinheiro(falta)}`)}` : ''}\n--------------------------------\n*Sabor de Abraço*\nAgradece a Preferência!\nVolte sempre!`;
 }

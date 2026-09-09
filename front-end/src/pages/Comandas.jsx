@@ -30,6 +30,7 @@ function buildCupomHtml(pedido, comanda) {
       <div style="font-weight:bold;white-space:nowrap;">R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.', ',')}</div>
     </div>
   `).join('');
+  const usoInterno = Boolean(pedido.utilizacaoInterna);
 
   return `<!DOCTYPE html><html><head><title>Cupom #${pedido.numero}</title>
   <style>
@@ -54,6 +55,7 @@ function buildCupomHtml(pedido, comanda) {
   <div class="linha-dupla"></div>
   <div style="display:flex;justify-content:space-between;"><span>Subtotal:</span><span>R$ ${pedido.subtotal.toFixed(2).replace('.', ',')}</span></div>
   ${pedido.desconto > 0 ? `<div style="display:flex;justify-content:space-between;color:#16a34a;"><span>Desconto:</span><span>-R$ ${pedido.desconto.toFixed(2).replace('.', ',')}</span></div>` : ''}
+  ${usoInterno ? `<div style="display:flex;justify-content:space-between;color:#7c4b1e;"><span>Uso interno:</span><span>SIM</span></div>` : ''}
   <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:bold;border-top:2px solid #000;padding-top:8px;margin-top:8px;">
     <span>TOTAL:</span><span>R$ ${pedido.total.toFixed(2).replace('.', ',')}</span>
   </div>
