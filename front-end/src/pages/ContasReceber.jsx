@@ -26,6 +26,7 @@ export default function ContasReceber() {
   const [carregando, setCarregando] = useState(true);
   const [pedidos, setPedidos] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [produtos, setProdutos] = useState([]);
   const [clienteFiltro, setClienteFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('pendente');
   const [inicio, setInicio] = useState('');
@@ -34,6 +35,8 @@ export default function ContasReceber() {
   const [pagamentoConcluido, setPagamentoConcluido] = useState(null);
   const [quitarClienteModal, setQuitarClienteModal] = useState(false);
   const [pagamentoMultiploModal, setPagamentoMultiploModal] = useState(null);
+  const [novoPedidoModal, setNovoPedidoModal] = useState(null);
+  const [novoPedidoForm, setNovoPedidoForm] = useState({ produtoId: '', quantidade: '1', nomeSolicitante: '', observacao: '', itens: [] });
   const [formPagamento, setFormPagamento] = useState({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
   const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'credito_loja', observacao: '' });
   const [selecionados, setSelecionados] = useState(new Set());
@@ -49,8 +52,9 @@ export default function ContasReceber() {
 
   const carregarDados = async () => {
     try {
-      const res = await api.get('/customers');
-      setClientes(res.data);
+      const [clientesResponse, produtosResponse] = await Promise.all([api.get('/customers'), api.get('/products')]);
+      setClientes(clientesResponse.data);
+      setProdutos(produtosResponse.data);
     } catch { showToast('Erro ao carregar clientes', 'error'); }
   };
 
@@ -276,6 +280,35 @@ export default function ContasReceber() {
       showToast('✅ Todas as pendências do cliente foram quitadas!', 'success');
       carregarPedidos();
     } catch (error) { showToast(error.response?.data?.msg || 'Erro ao quitar pendências', 'error'); }
+  };
+
+  const abrirNovoPedido = (pedido) => {
+    setNovoPedidoModal(pedido);
+    setNovoPedidoForm({ produtoId: '', quantidade: '1', nomeSolicitante: '', observacao: '', itens: [] });
+  };
+
+  const adicionarItemNovoPedido = () => {
+    if (!novoPedidoForm.produtoId || Number(novoPedidoForm.quantidade) < 0.001) return showToast('Selecione um produto e uma quantidade válida', 'warning');
+    const produto = produtos.find((item) => item._id === novoPedidoForm.produtoId);
+    const quantidade = Number(novoPedidoForm.quantidade);
+    if (!produto) return;
+    if (!produto.vendidoFracionado && !Number.isInteger(quantidade)) return showToast('Este produto é vendido somente por unidade', 'warning');
+    setNovoPedidoForm((form) => ({ ...form, produtoId: '', quantidade: '1', itens: [...form.itens, { produtoId: produto._id, nome: produto.nome, quantidade }] }));
+  };
+
+  const adicionarItensAoPedido = async () => {
+    if (!novoPedidoForm.itens.length) return showToast('Adicione pelo menos um produto', 'warning');
+    if (!novoPedidoForm.nomeSolicitante.trim()) return showToast('Informe o nome de quem está fazendo o novo pedido', 'warning');
+    try {
+      await api.patch(`/orders/${novoPedidoModal._id}/adicionar-itens`, {
+        itens: novoPedidoForm.itens,
+        nomeSolicitante: novoPedidoForm.nomeSolicitante,
+        observacao: novoPedidoForm.observacao,
+      });
+      setNovoPedidoModal(null);
+      showToast('Novo pedido adicionado à conta', 'success');
+      carregarPedidos();
+    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao adicionar novo pedido', 'error'); }
   };
 
 
@@ -772,6 +805,14 @@ Obrigado! 🙏`
 
                   {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
                     <>
+                      {pedido.comandaId && <button
+                        onClick={() => abrirNovoPedido(pedido)}
+                        style={{
+                          padding: '10px 8px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 8,
+                          fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          whiteSpace: 'nowrap', width: '100%', boxSizing: 'border-box'
+                        }}
+                      >➕ Novo pedido</button>}
                       <button 
                         onClick={() => abrirModalReceber(pedido)}
                         style={{
@@ -895,6 +936,24 @@ Obrigado! 🙏`
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
               }}>Quitar Total</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {novoPedidoModal && (
+        <div onClick={() => setNovoPedidoModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
+          <div onClick={event => event.stopPropagation()} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
+            <h3 style={{ margin: '0 0 6px' }}>➕ Novo pedido na conta</h3>
+            <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{novoPedidoModal.numero} · {novoPedidoModal.clienteNome}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px auto', gap: 8, alignItems: 'end', marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 700 }}>Produto<select value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value })} style={{ display: 'block', width: '100%', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }}><option value="">Selecione...</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
+              <label style={{ fontSize: 12, fontWeight: 700 }}>Qtd<input type="number" min="0.001" step="0.001" value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
+              <button onClick={adicionarItemNovoPedido} style={{ padding: 10, background: 'var(--accent-primary)', color: '#fff', border: 0, borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Adicionar</button>
+            </div>
+            {novoPedidoForm.itens.length > 0 && <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)', borderRadius: 10, padding: 10, marginBottom: 12 }}>{novoPedidoForm.itens.map((item, index) => <div key={`${item.produtoId}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '5px 0', borderBottom: index < novoPedidoForm.itens.length - 1 ? '1px solid var(--border-light)' : 0, fontSize: 13 }}><span>{item.quantidade}x {item.nome}</span><button onClick={() => setNovoPedidoForm({ ...novoPedidoForm, itens: novoPedidoForm.itens.filter((_, itemIndex) => itemIndex !== index) })} style={{ border: 0, background: 'transparent', color: 'var(--error-bg)', cursor: 'pointer' }}>Remover</button></div>)}</div>}
+            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
+            <label style={{ display: 'block', marginBottom: 16, fontSize: 12, fontWeight: 700 }}>Observação do novo pedido<textarea value={novoPedidoForm.observacao} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, observacao: event.target.value })} placeholder="Ex.: café e salgado para Maria" rows="3" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10, resize: 'vertical' }} /></label>
+            <div style={{ display: 'flex', gap: 10 }}><button onClick={() => setNovoPedidoModal(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button><button onClick={adicionarItensAoPedido} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Confirmar novo pedido</button></div>
           </div>
         </div>
       )}

@@ -25,6 +25,17 @@ async function ajustarEstoque(itens, operacao, session) {
 router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const filter = req.query.status ? { status: req.query.status } : {};
+    const { dataInicio, dataFim } = req.query;
+    if (dataInicio || dataFim) {
+      const inicio = dataInicio ? new Date(`${dataInicio}T00:00:00.000Z`) : null;
+      const fim = dataFim ? new Date(`${dataFim}T23:59:59.999Z`) : null;
+      if ((inicio && Number.isNaN(inicio.getTime())) || (fim && Number.isNaN(fim.getTime()))) {
+        return res.status(400).json({ msg: 'Período inválido' });
+      }
+      filter.createdAt = {};
+      if (inicio) filter.createdAt.$gte = inicio;
+      if (fim) filter.createdAt.$lte = fim;
+    }
     res.json(await Comanda.find(filter).sort({ createdAt: -1 }));
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });

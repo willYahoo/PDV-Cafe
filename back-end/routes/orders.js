@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Order = require('../models/Order');
+const Comanda = require('../models/Comanda');
 const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 
@@ -66,6 +67,59 @@ router.get('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (!order) return res.status(404).json({ msg: 'Pedido não encontrado' });
     res.json(order);
   } catch (err) { res.status(400).json({ msg: err.message }); }
+});
+
+router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const order = await Order.findById(req.params.id).session(session);
+    if (!order || !['pendente', 'parcial'].includes(order.status)) throw new Error('Somente pedidos A Receber podem receber novos itens');
+    if (!order.comandaId) throw new Error('Este pedido não está vinculado a uma comanda');
+    if (!Array.isArray(req.body.itens) || !req.body.itens.length) throw new Error('Adicione pelo menos um produto');
+
+    const quantidades = new Map();
+    req.body.itens.forEach((item) => {
+      const quantidade = Number(item.quantidade);
+      if (!mongoose.isValidObjectId(item.produtoId) || !Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Item inválido');
+      quantidades.set(String(item.produtoId), (quantidades.get(String(item.produtoId)) || 0) + quantidade);
+    });
+    const products = await Product.find({ _id: { $in: [...quantidades.keys()] } }).session(session);
+    const porId = new Map(products.map((product) => [String(product._id), product]));
+    const novosItens = req.body.itens.map((item) => {
+      const product = porId.get(String(item.produtoId));
+      const quantidade = Number(item.quantidade);
+      if (!product) throw new Error('Produto não encontrado');
+      if (!product.vendidoFracionado && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+      return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
+    });
+    for (const [produtoId, quantidade] of quantidades) {
+      const updated = await Product.findOneAndUpdate({ _id: produtoId, estoque: { $gte: quantidade } }, { $inc: { estoque: -quantidade } }, { new: true, session });
+      if (!updated) throw new Error(`Estoque insuficiente para "${porId.get(produtoId)?.nome || produtoId}"`);
+    }
+
+    const subtotalNovos = novosItens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0);
+    order.itens.push(...novosItens);
+    order.subtotal = money(Number(order.subtotal || 0) + subtotalNovos);
+    order.total = money(order.subtotal - Number(order.desconto || 0));
+    const nome = String(req.body.nomeSolicitante || '').trim();
+    const observacao = String(req.body.observacao || '').trim();
+    const registro = [nome, observacao].filter(Boolean).join(': ');
+    if (registro) order.observacao = [order.observacao, `Novo pedido - ${registro}`].filter(Boolean).join(' | ');
+    await order.save({ session });
+
+    const comanda = await Comanda.findById(order.comandaId).session(session);
+    if (comanda) {
+      comanda.itens.push(...novosItens);
+      if (registro) comanda.observacao = [comanda.observacao, `Novo pedido - ${registro}`].filter(Boolean).join(' | ');
+      await comanda.save({ session });
+    }
+    await session.commitTransaction();
+    res.json(order);
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
 });
 
 router.patch('/:id/pagar', auth, auth.allowRoles('admin'), async (req, res) => {
