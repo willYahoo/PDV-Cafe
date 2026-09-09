@@ -115,6 +115,7 @@ export default function Comandas() {
   const [modalFechamento, setModalFechamento] = useState(false);
   const [discount, setDiscount] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [utilizacaoInterna, setUtilizacaoInterna] = useState(false);
   const [paymentError, setPaymentError] = useState(false);
   const [telefoneModal, setTelefoneModal] = useState('');
   const [nomeModal, setNomeModal] = useState('');
@@ -136,7 +137,7 @@ export default function Comandas() {
   useEffect(() => { load(); }, []);
 
   const subtotal = useMemo(() => (selected?.itens || []).reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0), [selected]);
-  const total = Math.max(0, subtotal - (Number(discount) || 0));
+  const total = utilizacaoInterna ? 0 : Math.max(0, subtotal - (Number(discount) || 0));
 
   const create = async (event) => {
     event.preventDefault();
@@ -168,6 +169,7 @@ export default function Comandas() {
     if (!selected.itens.length) { showToast('A comanda não tem itens', 'warning'); return; }
     setDiscount('0');
     setPaymentMethod('');
+    setUtilizacaoInterna(false);
     setPaymentError(false);
     setTelefoneModal('');
     setNomeModal(selected.clienteNome || '');
@@ -175,12 +177,18 @@ export default function Comandas() {
   };
 
   const confirmarFechamento = async () => {
-    if (!paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
+    if (!utilizacaoInterna && !paymentMethod) { setPaymentError(true); showToast('Escolha a forma de pagamento', 'warning'); return; }
     const comandaFechada = selected;
     try {
-      const { data } = await api.post(`/comandas/${selected._id}/fechar`, { desconto: Number(discount), metodoPagamento: paymentMethod, telefone: telefoneModal, nome: nomeModal });
+      const { data } = await api.post(`/comandas/${selected._id}/fechar`, {
+        desconto: Number(discount),
+        metodoPagamento: utilizacaoInterna ? 'credito_loja' : paymentMethod,
+        utilizacaoInterna,
+        telefone: telefoneModal,
+        nome: nomeModal,
+      });
       setModalFechamento(false);
-      setDiscount('0'); setPaymentMethod(''); setPaymentError(false);
+      setDiscount('0'); setPaymentMethod(''); setUtilizacaoInterna(false); setPaymentError(false);
       setModalSucesso({ pedido: data.pedido, comanda: comandaFechada, telefone: telefoneModal, nome: nomeModal });
       showToast(`Comanda #${comandaFechada.numero} fechada → Pedido #${data.pedido.numero}`, 'success');
       load();
@@ -268,11 +276,37 @@ export default function Comandas() {
               </div>
             </div>
 
+            <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 12px' }}>
+              <input
+                type="checkbox"
+                checked={utilizacaoInterna}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setUtilizacaoInterna(checked);
+                  if (checked) {
+                    setPaymentMethod('credito_loja');
+                  } else {
+                    setPaymentMethod('');
+                  }
+                  setPaymentError(false);
+                }}
+                style={{ width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
+              />
+              <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', cursor: 'pointer' }}>
+                UTILIZAÇÃO INTERNA
+              </label>
+            </div>
+
             {/* forma de pagamento */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
-              <select className="comandas-field" value={paymentMethod} onChange={e => { setPaymentMethod(e.target.value); setPaymentError(false); }}
-                style={{ width: '100%', borderColor: paymentError ? 'var(--error-bg)' : undefined }}>
+              <select
+                className="comandas-field"
+                value={utilizacaoInterna ? 'credito_loja' : paymentMethod}
+                onChange={e => { setPaymentMethod(e.target.value); setPaymentError(false); }}
+                disabled={utilizacaoInterna}
+                style={{ width: '100%', borderColor: paymentError ? 'var(--error-bg)' : undefined, opacity: utilizacaoInterna ? 0.7 : 1 }}
+              >
                 <option value="">Selecione…</option>
                 <option value="pix">Pix</option>
                 <option value="dinheiro">Dinheiro</option>

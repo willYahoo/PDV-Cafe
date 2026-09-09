@@ -35,6 +35,7 @@ const orderSchema = new mongoose.Schema({
   itens: [itemSchema],
   subtotal: { type: Number, required: true, min: 0 },
   desconto: { type: Number, default: 0, min: 0 },
+  utilizacaoInterna: { type: Boolean, default: false },
   total: { type: Number, required: true, min: 0 },
   
   clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },

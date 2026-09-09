@@ -190,14 +190,18 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
     session.startTransaction();
     const comanda = await Comanda.findById(req.params.id).session(session);
     if (!comanda || comanda.status !== 'aberta' || !comanda.itens.length) throw new Error('Comanda sem itens ou já fechada');
+    const utilizacaoInterna = Boolean(req.body.utilizacaoInterna);
     const metodoPagamento = req.body.metodoPagamento;
-    if (!['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja'].includes(metodoPagamento)) throw new Error('Selecione uma forma de pagamento');
+    if (!utilizacaoInterna && !['dinheiro', 'pix', 'cartao_credito', 'cartao_debito', 'credito_loja'].includes(metodoPagamento)) {
+      throw new Error('Selecione uma forma de pagamento');
+    }
     if (!comanda.estoqueBaixado) await ajustarEstoque(comanda.itens, 'baixar', session);
     const subtotal = money(comanda.itens.reduce((sum, item) => sum + item.precoUnitario * item.quantidade, 0));
     const discount = money(req.body.desconto || 0);
     if (discount < 0 || discount > subtotal) throw new Error('Desconto inválido');
-    const total = money(subtotal - discount);
-    const creditoLoja = metodoPagamento === 'credito_loja';
+    const total = utilizacaoInterna ? 0 : money(subtotal - discount);
+    const pagamentoFinal = utilizacaoInterna ? 'credito_loja' : metodoPagamento;
+    const creditoLoja = pagamentoFinal === 'credito_loja';
     const telefone = String(req.body.telefone || '').replace(/\D/g, '');
     const nome = String(req.body.nome || '').trim();
     let customer = comanda.clienteId ? await Customer.findById(comanda.clienteId).session(session) : null;
@@ -217,14 +221,19 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       itens: comanda.itens,
       subtotal,
       desconto: discount,
+      utilizacaoInterna,
       total,
       clienteId: customer?.id || comanda.clienteId,
       clienteNome: customer?.nome || comanda.clienteNome,
       clienteTelefone: customer?.telefone || telefone,
       atendente: req.user.username,
       comandaId: comanda.id,
-      status: creditoLoja ? 'pendente' : 'pago',
-      pagamentos: creditoLoja ? [] : [{ tipo: metodoPagamento, valorRecebido: total, dataPagamento: new Date(), quitado: true }],
+      status: utilizacaoInterna || creditoLoja ? (utilizacaoInterna ? 'pago' : 'pendente') : 'pago',
+      pagamentos: utilizacaoInterna
+        ? [{ tipo: 'credito_loja', valorRecebido: 0, dataPagamento: new Date(), quitado: true, observacao: 'Utilização interna' }]
+        : creditoLoja
+          ? []
+          : [{ tipo: pagamentoFinal, valorRecebido: total, dataPagamento: new Date(), quitado: true }],
     });
     await order.save({ session });
     if (customer) {

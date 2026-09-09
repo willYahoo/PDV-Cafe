@@ -8,6 +8,8 @@ export default function Login() {
   const imagensMarca = ['/Abraco5.png', '/Abraco10.png', '/Abraco11.png'];
   const [form, setForm] = useState({ username: '', password: '' });
   const [imagemAtiva, setImagemAtiva] = useState(0);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
   const { login, user } = useContext(AuthContext);
   const { isDark, toggleTheme } = useContext(ThemeContext);
   const { showToast } = useToast();
@@ -15,8 +17,26 @@ export default function Login() {
 
   useEffect(() => {
     const intervalo = window.setInterval(() => setImagemAtiva((atual) => (atual + 1) % imagensMarca.length), 5000);
-    return () => window.clearInterval(intervalo);
-  }, [imagensMarca.length]);
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setShowInstallButton(true);
+    };
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+      setShowInstallButton(false);
+      showToast('App instalado com sucesso!', 'success');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.clearInterval(intervalo);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, [imagensMarca.length, showToast]);
 
   if (user) return <Navigate to="/pdv" />;
 
@@ -32,6 +52,22 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+
+    installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+
+    if (choice.outcome === 'accepted') {
+      showToast('Instalação iniciada!', 'success');
+    } else {
+      showToast('Instalação cancelada.', 'info');
+    }
+
+    setInstallPrompt(null);
+    setShowInstallButton(false);
   };
 
   return (
@@ -61,6 +97,17 @@ export default function Login() {
           position: 'absolute', top: 20, right: 20,
           display: 'flex', gap: '10px'
         }}>
+          {showInstallButton && (
+            <button onClick={handleInstallClick} style={{
+              background: 'var(--accent-primary)', color: '#fff',
+              border: 'none', padding: '10px 14px', borderRadius: '10px', fontSize: '14px',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'all 0.2s ease', boxShadow: 'var(--shadow-sm)'
+            }} title="Instalar app">
+              ⬇️ Instalar
+            </button>
+          )}
           <button onClick={toggleTheme} style={{
             background: 'var(--bg-tertiary)', color: 'var(--text-primary)',
             border: '1px solid var(--border-color)',
