@@ -134,6 +134,62 @@ router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), 
   } finally { await session.endSession(); }
 });
 
+router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+    const comandaOrigem = await Comanda.findById(req.params.id).session(session);
+    if (!comandaOrigem || comandaOrigem.status !== 'aberta') {
+      return res.status(400).json({ msg: 'Comanda não está aberta' });
+    }
+
+    const itemIds = Array.isArray(req.body.itemIds) ? req.body.itemIds.map(String) : [];
+    if (!itemIds.length) return res.status(400).json({ msg: 'Selecione ao menos um item' });
+
+    const itensSelecionados = comandaOrigem.itens.filter((item) => itemIds.includes(String(item._id)));
+    if (itensSelecionados.length !== itemIds.length) {
+      return res.status(400).json({ msg: 'Alguns itens selecionados não pertencem a esta comanda' });
+    }
+
+    const itensMovidos = itensSelecionados.map((item) => ({
+      produtoId: item.produtoId,
+      codigo: item.codigo,
+      nome: item.nome,
+      precoUnitario: item.precoUnitario,
+      quantidade: item.quantidade,
+      unidadeVenda: item.unidadeVenda,
+      modificadores: [...(item.modificadores || [])],
+    }));
+
+    if (comandaOrigem.estoqueBaixado) {
+      await ajustarEstoque(itensMovidos, 'devolver', session);
+    }
+
+    comandaOrigem.itens = comandaOrigem.itens.filter((item) => !itemIds.includes(String(item._id)));
+    comandaOrigem.estoqueBaixado = comandaOrigem.itens.length > 0;
+    await comandaOrigem.save({ session });
+
+    const novaComanda = new Comanda({
+      clienteId: comandaOrigem.clienteId,
+      clienteNome: req.body.clienteNome || comandaOrigem.clienteNome || 'Cliente não identificado',
+      observacao: req.body.observacao || comandaOrigem.observacao,
+      itens: itensMovidos,
+      estoqueBaixado: true,
+      atendente: req.user.username,
+      status: 'aberta',
+    });
+
+    await ajustarEstoque(itensMovidos, 'baixar', session);
+    await novaComanda.save({ session });
+
+    await session.commitTransaction();
+    res.json({ novaComanda, comandaOrigem });
+  } catch (err) {
+    if (session.inTransaction()) await session.abortTransaction();
+    res.status(400).json({ msg: err.message });
+  } finally { await session.endSession(); }
+});
+
 router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
@@ -241,7 +297,10 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
       comanda.clienteId = customer.id;
       if (nome) comanda.clienteNome = nome;
     }
-    comanda.status = 'fechada'; comanda.pedidoId = order.id;
+    comanda.status = 'fechada';
+    comanda.pedidoId = order.id;
+    comanda.desconto = discount;
+    comanda.utilizacaoInterna = utilizacaoInterna;
     await comanda.save({ session });
     await session.commitTransaction();
     res.json({ comanda, pedido: order });

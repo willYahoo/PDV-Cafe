@@ -109,6 +109,8 @@ export default function Comandas() {
   const [comandas, setComandas] = useState([]);
   const [products, setProducts] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [selectedItemIds, setSelectedItemIds] = useState([]);
+  const [modalMoverComanda, setModalMoverComanda] = useState(null);
   const [newCommand, setNewCommand] = useState({ clienteNome: '', observacao: '' });
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -159,6 +161,47 @@ export default function Comandas() {
   };
 
   const removeItem = async (itemId) => { await api.delete(`/comandas/${selected._id}/itens/${itemId}`); load(); };
+
+  const toggleItemSelection = (itemId) => {
+    setSelectedItemIds((current) => current.includes(itemId)
+      ? current.filter((id) => id !== itemId)
+      : [...current, itemId]);
+  };
+
+  const moverParaNovaComanda = async () => {
+    if (!selected || !selectedItemIds.length) {
+      showToast('Selecione ao menos um item para mover', 'warning');
+      return;
+    }
+
+    setModalMoverComanda({
+      origem: selected.numero,
+      quantidade: selectedItemIds.length,
+      clienteNome: selected.clienteNome || '',
+      observacao: selected.observacao || '',
+    });
+  };
+
+  const confirmarMovimentoParaNovaComanda = async () => {
+    if (!selected || !selectedItemIds.length) return;
+
+    try {
+      const { data } = await api.post(`/comandas/${selected._id}/mover`, {
+        itemIds: selectedItemIds,
+        clienteNome: modalMoverComanda?.clienteNome || selected.clienteNome,
+        observacao: modalMoverComanda?.observacao || selected.observacao,
+      });
+      setSelectedItemIds([]);
+      setModalMoverComanda(null);
+      await load();
+      setSelected(data.novaComanda);
+      setMobileView('detail');
+      showToast(`Itens movidos para a comanda #${data.novaComanda.numero}`, 'success');
+    } catch (error) {
+      setModalMoverComanda(null);
+      showToast(error.response?.data?.msg || 'Erro ao mover itens', 'error');
+    }
+  };
 
   const cancel = async () => {
     if (!selected || !window.confirm(`Cancelar a comanda #${selected.numero}?`)) return;
@@ -233,7 +276,41 @@ export default function Comandas() {
               <input className="comandas-field quantity-field" required type="number" min={produtoSelecionado?.vendidoFracionado ? '0.001' : '1'} step={produtoSelecionado?.vendidoFracionado ? '0.001' : '1'} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
               <button type="submit" className="comandas-secondary-button">Adicionar</button>
             </form>
-            {(selected.itens || []).map((item) => <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}><span><b>{item.nome}</b><br /><small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>{item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}</span><span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`}>×</button></span></div>)}
+
+            {selected.itens.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                {selectedItemIds.length > 0 && (
+                  <button type="button" onClick={moverParaNovaComanda} className="comandas-secondary-button" style={{ flex: 1, minWidth: 180 }}>
+                    📦 Criar nova comanda com {selectedItemIds.length} item{selectedItemIds.length > 1 ? 'ns' : ''}
+                  </button>
+                )}
+                {selectedItemIds.length > 0 && (
+                  <button type="button" onClick={() => setSelectedItemIds([])} className="comandas-cancel-button" style={{ flex: 1, minWidth: 140 }}>
+                    Limpar seleção
+                  </button>
+                )}
+              </div>
+            )}
+
+            {(selected.itens || []).map((item) => (
+              <div key={item._id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderTop: '1px solid var(--border-color)', padding: '10px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedItemIds.includes(item._id)}
+                    onChange={() => toggleItemSelection(item._id)}
+                    style={{ marginTop: 5, width: 18, height: 18, accentColor: 'var(--accent-primary)' }}
+                    aria-label={`Selecionar ${item.nome}`}
+                  />
+                  <span>
+                    <b>{item.nome}</b><br />
+                    <small>{formatQuantity(item)} × {formatMoney(item.precoUnitario)}</small>
+                    {item.modificadores?.length > 0 && <><br /><small style={{ color: 'var(--accent-primary)' }}>☕ {item.modificadores.join(' · ')}</small></>}
+                  </span>
+                </div>
+                <span>{formatMoney(item.quantidade * item.precoUnitario)} <button onClick={() => removeItem(item._id)} aria-label={`Remover ${item.nome}`}>×</button></span>
+              </div>
+            ))}
             <div className="comandas-checkout">
               <div><small style={{ display: 'block', color: 'var(--text-secondary)' }}>Total da comanda</small><b style={{ fontSize: 20, color: 'var(--accent-primary)' }}>{formatMoney(subtotal)}</b></div>
               <button onClick={abrirModalFechamento} className="comandas-primary-button">Fechar comanda</button>
@@ -339,6 +416,46 @@ export default function Comandas() {
             <button onClick={confirmarFechamento} style={{ width: '100%', minHeight: 50, border: 0, borderRadius: 12, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
               ✅ Confirmar Fechamento
             </button>
+          </div>
+        </div>
+      )}
+
+      {modalMoverComanda && (
+        <div onClick={() => setModalMoverComanda(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9002, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 18, padding: 24, boxShadow: 'var(--shadow-lg)', color: 'var(--text-primary)' }}>
+            <div style={{ width: 62, height: 62, borderRadius: '50%', margin: '0 auto 12px', background: 'rgba(124,75,30,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30 }}>📦</div>
+            <h3 style={{ margin: '0 0 8px', textAlign: 'center', fontSize: 20 }}>Criar nova comanda?</h3>
+            <p style={{ margin: '0 0 16px', textAlign: 'center', fontSize: 14, color: 'var(--text-secondary)' }}>
+              Você vai mover <strong>{modalMoverComanda.quantidade}</strong> item{modalMoverComanda.quantidade > 1 ? 'ns' : ''} da comanda <strong>#{modalMoverComanda.origem}</strong> para uma nova comanda.
+            </p>
+            <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+              <label style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Nome do cliente
+                <input
+                  value={modalMoverComanda.clienteNome}
+                  onChange={(event) => setModalMoverComanda((prev) => ({ ...prev, clienteNome: event.target.value }))}
+                  className="comandas-field"
+                  placeholder="Cliente da nova comanda"
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Observação
+                <input
+                  value={modalMoverComanda.observacao}
+                  onChange={(event) => setModalMoverComanda((prev) => ({ ...prev, observacao: event.target.value }))}
+                  className="comandas-field"
+                  placeholder="Ex.: Cliente vai pagar separadamente"
+                />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" onClick={() => setModalMoverComanda(null)} style={{ flex: 1, minHeight: 48, border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-tertiary)', color: 'var(--text-primary)', fontWeight: 700, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={confirmarMovimentoParaNovaComanda} style={{ flex: 1, minHeight: 48, border: 0, borderRadius: 10, background: 'var(--accent-primary)', color: '#fff', fontWeight: 800, cursor: 'pointer' }}>
+                Confirmar
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -16,6 +16,8 @@ const comandaSchema = new mongoose.Schema({
   clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
   observacao: { type: String, trim: true },
   itens: { type: [itemSchema], default: [] },
+  desconto: { type: Number, default: 0, min: 0 },
+  utilizacaoInterna: { type: Boolean, default: false },
   estoqueBaixado: { type: Boolean, default: false },
   status: { type: String, enum: ['aberta', 'fechada', 'cancelada'], default: 'aberta', index: true },
   atendente: { type: String, required: true },
