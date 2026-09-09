@@ -36,7 +36,7 @@ export default function Dashboard() {
     const selecionarComanda = (event) => {
       const item = event.target.closest('.dashboard-comanda');
       if (!item) return;
-      const numero = item.textContent.match(/#([^\s]+)/)?.[1];
+      const numero = item.querySelector('strong')?.textContent.replace('#', '').trim();
       const comanda = comandas.find((registro) => registro.numero === numero);
       if (comanda) setComandaSelecionada(comanda);
     };
