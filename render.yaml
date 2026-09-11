@@ -12,7 +12,7 @@ services:
       - key: MONGO_URI
         sync: false
       - key: FRONTEND_URL
-        value: https://pdv-cafe-web-willplacetech.onrender.com
+        value: https://sabordabraco.onrender.com,https://pdv-cafe-web-willplacetech.onrender.com,https://pdv-mern-1.onrender.com
 
   - type: web
     runtime: static
@@ -22,4 +22,4 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://saborabraco.onrender.com/api
+        value: https://pdv-cafe-api-willplacetech.onrender.com/api

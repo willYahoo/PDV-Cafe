@@ -8,8 +8,12 @@ const connectDB = require('./db');
 const User = require('./models/User');
 
 const app = express();
-const allowedOrigins = (process.env.FRONTEND_URL || 'https://pdv-mern-1.onrender.com')
-  .split(',')
+const allowedOrigins = [
+  ...(process.env.FRONTEND_URL || '').split(','),
+  'https://sabordabraco.onrender.com',
+  'https://pdv-cafe-web-willplacetech.onrender.com',
+  'https://pdv-mern-1.onrender.com',
+]
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 
