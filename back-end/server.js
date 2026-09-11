@@ -11,26 +11,31 @@ const app = express();
 const allowedOrigins = [
   ...(process.env.FRONTEND_URL || '').split(','),
   'https://sabordabraco.onrender.com',
+  'https://saborabraco.onrender.com',
   'https://pdv-cafe-web-willplacetech.onrender.com',
   'https://pdv-mern-1.onrender.com',
 ]
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
-
-// Middlewares
-app.disable('x-powered-by');
-app.use(helmet());
-app.use(cors({
+const isRenderOrigin = (origin) => /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin);
+const corsOptions = {
   origin: (requestOrigin, callback) => {
-    if (!requestOrigin || allowedOrigins.includes(requestOrigin.replace(/\/$/, ''))) {
+    const normalizedOrigin = requestOrigin?.replace(/\/$/, '');
+    if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin) || isRenderOrigin(normalizedOrigin)) {
       return callback(null, true);
     }
     return callback(new Error('Origem não autorizada pelo CORS'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+};
+
+// Middlewares
+app.disable('x-powered-by');
+app.use(helmet());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
   const cookieHeader = req.headers.cookie || '';
