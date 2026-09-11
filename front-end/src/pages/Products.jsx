@@ -8,7 +8,7 @@ const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', '
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, producaoPropria: false, controladoComoInsumo: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false };
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
@@ -58,7 +58,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), custo: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
+    const dados = { ...form, preco: parseFloat(form.preco), custo: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -73,7 +73,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custo || '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custo || '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -187,6 +187,7 @@ export default function Products() {
               <input type="checkbox" checked={form.aFazer} onChange={e => setForm({ ...form, aFazer: e.target.checked })} />
               A Fazer (enviar para a cozinha)
             </label>
+            {form.aFazer && <div className="technical-sheet"><strong>Ficha técnica do produto</strong><small>Insumos consumidos por unidade deste produto.</small>{form.fichaTecnica.map((item, index) => <div className="technical-row" key={`${index}-${item.produtoId}`}><select value={item.produtoId} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, produtoId: e.target.value } : current) })}><option value="">Ingrediente</option>{produtos.filter((produto) => produto._id !== editing?._id).map((produto) => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select><input type="number" min="0.001" step="0.001" placeholder="Quantidade" value={item.quantidade} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, quantidade: e.target.value } : current) })} /><select value={item.unidade || 'un'} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, unidade: e.target.value } : current) })}>{['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade}>{unidade}</option>)}</select><button type="button" onClick={() => setForm({ ...form, fichaTecnica: form.fichaTecnica.filter((_, itemIndex) => itemIndex !== index) })}>×</button></div>)}<button type="button" className="technical-add" onClick={() => setForm({ ...form, fichaTecnica: [...form.fichaTecnica, { produtoId: '', quantidade: '', unidade: 'un' }] })}>Adicionar insumo</button></div>}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
               <input type="checkbox" checked={form.producaoPropria} onChange={e => setForm({ ...form, producaoPropria: e.target.checked })} />
               Produto de produção própria
@@ -255,6 +256,14 @@ export default function Products() {
         .product-admin-footer small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
         .product-admin-footer .low-stock { color: var(--error-bg); font-weight: 700; }
         .product-tag { display: inline-block; margin-left: 10px; color: var(--success-bg); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+        .technical-sheet { grid-column: 1 / -1; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent-border); border-radius: 10px; background: var(--accent-light); }
+        .technical-sheet strong { color: var(--accent-primary); font-size: 13px; }
+        .technical-sheet small { color: var(--text-secondary); font-size: 11px; }
+        .technical-row { display: grid; grid-template-columns: 2fr 1fr 80px 34px; gap: 6px; }
+        .technical-row input, .technical-row select { min-width: 0; padding: 8px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); }
+        .technical-row button { border: 1px solid var(--border-color); border-radius: 8px; color: var(--error-bg); cursor: pointer; }
+        .technical-add { justify-self: start; padding: 7px 10px; border: 1px solid var(--accent-border); border-radius: 8px; background: var(--bg-secondary); color: var(--accent-primary); font-size: 11px; font-weight: 700; cursor: pointer; }
+        @media (max-width: 640px) { .technical-row { grid-template-columns: 1fr; } .technical-row button { min-height: 36px; } }
       `}</style>
     </div>
   );

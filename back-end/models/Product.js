@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
 
+const IngredientSchema = new mongoose.Schema({
+  produtoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  quantidade: { type: Number, required: true, min: 0.001 },
+  unidade: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], required: true },
+}, { _id: false });
+
 const ProductSchema = new mongoose.Schema({
   codigo: {
     type: String,
@@ -32,6 +38,10 @@ const ProductSchema = new mongoose.Schema({
   aFazer: {
     type: Boolean,
     default: false,
+  },
+  fichaTecnica: {
+    type: [IngredientSchema],
+    default: [],
   },
   preco: {
     type: Number,

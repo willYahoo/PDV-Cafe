@@ -51,12 +51,13 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     const estoque = Number(data.estoque) || 0;
     const estoqueInsumos = Number(data.estoqueInsumos) || 0;
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), custo: Number(data.custo) || 0, estoque, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
+    const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), custo: Number(data.custo) || 0, estoque, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), fichaTecnica, producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
 
-router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -69,6 +70,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     ['codigo', 'nome', 'categoria', 'unidadeVenda'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
     ['preco', 'custo', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
     ['vendidoFracionado', 'aFazer', 'producaoPropria', 'controladoComoInsumo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
+    if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
     if (data.estoque !== undefined && antesDasOito()) {
       fields.estoqueInicialDia = Number(data.estoque);
       fields.estoqueInicialData = dataLocal();

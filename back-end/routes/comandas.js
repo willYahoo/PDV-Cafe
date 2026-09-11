@@ -10,14 +10,38 @@ const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 async function ajustarEstoque(itens, operacao, session) {
+  const produtos = await Product.find({ _id: { $in: itens.map((item) => item.produtoId) } }).session(session);
+  const porId = new Map(produtos.map((produto) => [String(produto._id), produto]));
   const totais = new Map();
-  itens.forEach((item) => totais.set(String(item.produtoId), (totais.get(String(item.produtoId)) || 0) + Number(item.quantidade || 0)));
+  const insumos = new Map();
+  itens.forEach((item) => {
+    const quantidade = Number(item.quantidade || 0);
+    const produto = porId.get(String(item.produtoId));
+    const ficha = item.insumosConsumidos?.length ? item.insumosConsumidos : produto?.fichaTecnica;
+    if (produto?.aFazer && ficha?.length) {
+      ficha.forEach((ingrediente) => {
+        const key = String(ingrediente.produtoId);
+        insumos.set(key, (insumos.get(key) || 0) + Number(ingrediente.quantidade) * quantidade);
+      });
+    } else {
+      const key = String(item.produtoId);
+      totais.set(key, (totais.get(key) || 0) + quantidade);
+    }
+  });
   for (const [produtoId, quantidade] of totais) {
     if (operacao === 'baixar') {
       const product = await Product.findOneAndUpdate({ _id: produtoId, estoque: { $gte: quantidade } }, { $inc: { estoque: -quantidade } }, { new: true, session });
       if (!product) throw new Error(`Estoque insuficiente para o produto ${produtoId}`);
     } else {
       await Product.findByIdAndUpdate(produtoId, { $inc: { estoque: quantidade } }, { session });
+    }
+  }
+  for (const [produtoId, quantidade] of insumos) {
+    if (operacao === 'baixar') {
+      const product = await Product.findOneAndUpdate({ _id: produtoId, estoqueInsumos: { $gte: quantidade } }, { $inc: { estoqueInsumos: -quantidade } }, { new: true, session });
+      if (!product) throw new Error(`Estoque de insumos insuficiente para o ingrediente ${produtoId}`);
+    } else {
+      await Product.findByIdAndUpdate(produtoId, { $inc: { estoqueInsumos: quantidade } }, { session });
     }
   }
 }
@@ -60,7 +84,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) =>
       const modificadores = Array.isArray(item.modificadores)
         ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
         : [];
-      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer) });
+      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     }
     await ajustarEstoque(itens, 'baixar', session);
     const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
@@ -86,7 +110,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
     await ajustarEstoque([{ produtoId: product.id, quantidade }], 'baixar', session);
-    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer) });
+    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     comanda.estoqueBaixado = true;
     await comanda.save({ session });
     await session.commitTransaction();
@@ -166,6 +190,8 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador'), async (req
       quantidade: item.quantidade,
       unidadeVenda: item.unidadeVenda,
       modificadores: [...(item.modificadores || [])],
+      aFazer: Boolean(item.aFazer),
+      insumosConsumidos: (item.insumosConsumidos || []).map((ingrediente) => (ingrediente.toObject ? ingrediente.toObject() : { produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })),
     }));
 
     if (comandaOrigem.estoqueBaixado) {
