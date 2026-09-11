@@ -10,7 +10,7 @@ const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear(
 const antesDasOito = () => new Date().getHours() < 8;
 const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('custo').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueInsumos').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('estoqueMinimoInsumos').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('producaoPropria').optional().isBoolean(), body('controladoComoInsumo').optional().isBoolean()];
 
-router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const { search, categoria } = req.query;
     const query = {};
@@ -20,7 +20,7 @@ router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => 
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const limite = Math.min(Math.max(Number(req.query.limite) || 8, 1), 20);
     const ranking = await Order.aggregate([
@@ -34,7 +34,7 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador'), async (
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.get('/:id', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
