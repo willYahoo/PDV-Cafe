@@ -2,6 +2,7 @@ const express = require('express');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
 const Customer = require('../models/Customer');
+const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -26,6 +27,16 @@ const fimDoMesAtual = () => {
   return new Date(agora.getFullYear(), agora.getMonth() + 1, 1);
 };
 
+const inicioDoMesAnterior = () => {
+  const agora = new Date();
+  return new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
+};
+
+const fimDoMesAnterior = () => {
+  const agora = new Date();
+  return new Date(agora.getFullYear(), agora.getMonth(), 1);
+};
+
 router.use(auth);
 router.use((req, res, next) => {
   if (req.user.role !== 'admin') return res.status(403).json({ msg: 'Acesso restrito ao administrador' });
@@ -35,7 +46,9 @@ router.use((req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const periodos = ['dia', 'semana', 'mes'];
-    const [periodMetrics, openCommands, pedidosDia, pedidosMes, recebimentosDia, recebimentosMes, clientesCadastrados, clientesRecentes] = await Promise.all([
+    const inicioInsights = new Date();
+    inicioInsights.setDate(inicioInsights.getDate() - 90);
+    const [periodMetrics, openCommands, pedidosDia, pedidosMes, recebimentosDia, recebimentosMes, clientesCadastrados, clientesRecentes, produtosCatalogo, pedidosInsights, comandasInsights] = await Promise.all([
       Promise.all(periodos.map(async (periodo) => {
         const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
@@ -52,6 +65,9 @@ router.get('/', async (req, res) => {
       Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
+      Product.find().select('nome codigo preco custo estoque categoria'),
+      Order.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status total itens clienteId clienteNome'),
+      Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
     const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
@@ -107,7 +123,72 @@ router.get('/', async (req, res) => {
       clientes: clientesMes.size,
       vendasPorDia: [...vendasPorDia.entries()].map(([dia, total]) => ({ dia, total })),
     };
-    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, atualizadoEm: new Date() });
+    const vendasPorProduto = new Map();
+    const inicioEstoqueParado = new Date();
+    inicioEstoqueParado.setDate(inicioEstoqueParado.getDate() - 60);
+    const vendasUltimos60Dias = new Set();
+    const vendasPorHora = Array.from({ length: 24 }, (_, hora) => ({ hora, pedidos: 0, itens: 0, total: 0 }));
+    pedidosInsights.filter((pedido) => pedido.status !== 'cancelado').forEach((pedido) => {
+      const hora = new Date(pedido.createdAt).getHours();
+      vendasPorHora[hora].pedidos += 1;
+      vendasPorHora[hora].total += Number(pedido.total || 0);
+      (pedido.itens || []).forEach((item) => {
+        const produtoId = String(item.produtoId || '');
+        if (new Date(pedido.createdAt) >= inicioEstoqueParado) vendasUltimos60Dias.add(produtoId);
+        const atual = vendasPorProduto.get(produtoId) || { produtoId, nome: item.nome, quantidade: 0, receita: 0 };
+        atual.quantidade += Number(item.quantidade || 0);
+        atual.receita += Number(item.quantidade || 0) * Number(item.precoUnitario || 0);
+        vendasPorProduto.set(produtoId, atual);
+        vendasPorHora[hora].itens += Number(item.quantidade || 0);
+      });
+    });
+    const produtosABC = [...vendasPorProduto.values()].sort((a, b) => b.receita - a.receita);
+    const receitaABC = produtosABC.reduce((total, produto) => total + produto.receita, 0);
+    let receitaAcumulada = 0;
+    const curvaABC = produtosABC.map((produto) => {
+      receitaAcumulada += produto.receita;
+      const acumulado = receitaABC ? receitaAcumulada / receitaABC : 0;
+      return { ...produto, classe: acumulado <= 0.8 ? 'A' : acumulado <= 0.95 ? 'B' : 'C', percentualReceita: receitaABC ? (produto.receita / receitaABC) * 100 : 0 };
+    });
+    const margemProdutos = produtosCatalogo.map((produto) => {
+      const venda = vendasPorProduto.get(String(produto._id)) || { quantidade: 0, receita: 0 };
+      const lucro = venda.receita - venda.quantidade * Number(produto.custo || 0);
+      return { produtoId: produto._id, nome: produto.nome, preco: Number(produto.preco || 0), custo: Number(produto.custo || 0), quantidade: venda.quantidade, receita: venda.receita, lucro, margemPercentual: venda.receita ? (lucro / venda.receita) * 100 : 0 };
+    }).sort((a, b) => b.lucro - a.lucro);
+    const estoqueParado = produtosCatalogo.filter((produto) => Number(produto.estoque || 0) > 0 && !vendasUltimos60Dias.has(String(produto._id))).map((produto) => ({ produtoId: produto._id, nome: produto.nome, categoria: produto.categoria, estoque: Number(produto.estoque || 0), diasSemVenda: 60 }));
+    const comandasCanceladas = comandasInsights.filter((comanda) => comanda.status === 'cancelada').length;
+    const comandasFinalizadas = comandasInsights.filter((comanda) => ['cancelada', 'fechada'].includes(comanda.status)).length;
+    const mesAtual = pedidosInsights.filter((pedido) => new Date(pedido.createdAt) >= inicioDoPeriodo('mes') && pedido.status !== 'cancelado');
+    const mesAnterior = pedidosInsights.filter((pedido) => { const data = new Date(pedido.createdAt); return data >= inicioDoMesAnterior() && data < fimDoMesAnterior() && pedido.status !== 'cancelado'; });
+    const totalMesAnterior = mesAnterior.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
+    const totalMesAtual = mesAtual.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
+    const clientesInsight = new Map();
+    pedidosInsights.filter((pedido) => pedido.status !== 'cancelado' && pedido.clienteId).forEach((pedido) => {
+      const id = String(pedido.clienteId);
+      const cliente = clientesInsight.get(id) || { id, nome: pedido.clienteNome || 'Cliente', compras: 0, total: 0, datas: [] };
+      cliente.compras += 1;
+      cliente.total += Number(pedido.total || 0);
+      cliente.datas.push(new Date(pedido.createdAt));
+      clientesInsight.set(id, cliente);
+    });
+    const clientesFrequentes = [...clientesInsight.values()].map((cliente) => {
+      const datas = cliente.datas.sort((a, b) => a - b);
+      const intervalos = datas.slice(1).map((data, index) => (data - datas[index]) / 86400000);
+      return { id: cliente.id, nome: cliente.nome, compras: cliente.compras, total: cliente.total, intervaloMedioDias: intervalos.length ? intervalos.reduce((sum, valor) => sum + valor, 0) / intervalos.length : null };
+    }).sort((a, b) => b.compras - a.compras || b.total - a.total).slice(0, 10);
+    const clientesComCompra = clientesInsight.size;
+    const clientesRecorrentes = [...clientesInsight.values()].filter((cliente) => cliente.compras > 1).length;
+    const insights = {
+      vendasPorHora: vendasPorHora.filter((item) => item.pedidos > 0),
+      horarioPico: vendasPorHora.reduce((pico, item) => item.total > pico.total ? item : pico, { hora: null, total: 0, pedidos: 0, itens: 0 }),
+      curvaABC,
+      margemProdutos,
+      estoqueParado,
+      cancelamentoComandas: { canceladas: comandasCanceladas, totalFinalizadas: comandasFinalizadas, taxa: comandasFinalizadas ? (comandasCanceladas / comandasFinalizadas) * 100 : 0 },
+      comparativoMes: { atual: { total: totalMesAtual, pedidos: mesAtual.length }, anterior: { total: totalMesAnterior, pedidos: mesAnterior.length }, variacaoPercentual: totalMesAnterior ? ((totalMesAtual - totalMesAnterior) / totalMesAnterior) * 100 : null },
+      fidelidade: { clientesComCompra, clientesRecorrentes, taxaRecorrencia: clientesComCompra ? (clientesRecorrentes / clientesComCompra) * 100 : 0, clientes: clientesFrequentes },
+    };
+    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, insights, atualizadoEm: new Date() });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 

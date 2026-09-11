@@ -34,6 +34,11 @@ const ProductSchema = new mongoose.Schema({
     required: [true, 'Preço é obrigatório'],
     min: [0, 'Preço não pode ser negativo'],
   },
+  custo: {
+    type: Number,
+    default: 0,
+    min: [0, 'Custo não pode ser negativo'],
+  },
   estoque: {
     type: Number,
     required: true,

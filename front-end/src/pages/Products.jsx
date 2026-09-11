@@ -8,7 +8,7 @@ const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', '
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, producaoPropria: false, controladoComoInsumo: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, producaoPropria: false, controladoComoInsumo: false };
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
@@ -58,7 +58,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
+    const dados = { ...form, preco: parseFloat(form.preco), custo: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -73,7 +73,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custo || '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -150,6 +150,12 @@ export default function Products() {
                 style={inputStyle} />
             </div>
             <div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Custo unitário (R$)</label>
+              <input type="number" step="0.01" min={0} placeholder="0.00" value={form.custo}
+                onChange={e => setForm({ ...form, custo: e.target.value })}
+                style={inputStyle} />
+            </div>
+            <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Estoque</label>
               <input type="number" step="0.001" min={0} placeholder="0" value={form.estoque}
                 onChange={e => setForm({ ...form, estoque: e.target.value })}
@@ -222,7 +228,7 @@ export default function Products() {
         </div>
 
 
-        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span>{p.producaoPropria && <small className="product-tag">Produção própria</small>}</div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} venda · {p.estoqueInsumos || 0} insumo(s)</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
+        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span>{p.producaoPropria && <small className="product-tag">Produção própria</small>}</div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small> Custo R$ {Number(p.custo || 0).toFixed(2).replace('.', ',')}</small><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} venda · {p.estoqueInsumos || 0} insumo(s)</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
       </div>
 
 

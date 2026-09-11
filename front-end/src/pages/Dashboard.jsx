@@ -4,6 +4,8 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { AuthContext } from '../context/AuthContextDefinition.jsx';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import DateInput from '../components/DateInput.jsx';
+import DashboardInsights from '../components/DashboardInsights.jsx';
 
 const money = (value) => `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 const labels = { dia: 'Hoje', semana: 'Esta semana', mes: 'Este mês' };
@@ -61,6 +63,7 @@ export default function Dashboard() {
   const vendasHoje = data.vendasHoje || { pedidos: 0, itens: 0, total: 0, recebido: 0, pendente: 0 };
   const relatorioMes = data.relatorioMes || { pedidos: 0, vendas: 0, itens: 0, total: 0, recebido: 0, pendente: 0, ticketMedio: 0, status: {}, pagamentos: [], produtos: [], clientes: 0, vendasPorDia: [] };
   const relatorioClientes = data.relatorioClientes || { periodo: '', totalCadastrados: 0, clientesComCompra: 0, totalVendido: 0, totalRecebido: 0, totalPendente: 0, clientes: [] };
+  const insights = data.insights || {};
   const estoque = [...produtos].sort((a, b) => Number(a.estoque || 0) - Number(b.estoque || 0));
   const estoquePorCategoria = estoque.reduce((grupos, produto) => {
     const categoria = produto.categoria || 'Outros';
@@ -155,6 +158,7 @@ export default function Dashboard() {
   if (dashboardTab === 'producao') return <div className="dashboard-page">
     <div className="dashboard-heading"><div><span className="dashboard-eyebrow">GESTÃO DA CASA</span><h1>Dashboard</h1><p>Indicadores de produção e disponibilidade de insumos.</p></div><div className="dashboard-open">Produção própria</div></div>
     <div className="dashboard-tabs"><button className="active" onClick={() => setDashboardTab('vendas')}>Vendas</button><button onClick={() => setDashboardTab('producao')}>Produção</button></div>
+    <DashboardInsights insights={insights} />
     <section className="dashboard-production-grid"><div className="dashboard-production-summary"><span>Insumos abaixo do mínimo</span><b>{productionData?.baixoEstoque?.length || 0}</b></div><div className="dashboard-production-summary"><span>Receitas disponíveis</span><b>{productionData?.receitasPossiveis?.filter((recipe) => recipe.producoesPossiveis > 0).length || 0}</b></div><div className="dashboard-production-summary"><span>Produções recentes</span><b>{productionData?.producoesRecentes?.length || 0}</b></div></section>
     <section className="dashboard-production-panel"><h2>Podem ser produzidas agora</h2>{productionData?.receitasPossiveis?.length ? productionData.receitasPossiveis.map((recipe) => <div className="dashboard-production-row" key={String(recipe.receitaId)}><span><strong>{recipe.receitaNome}</strong><small>{recipe.produtoNome} · rende {recipe.rendimentoPorProducao} {recipe.unidade}</small></span><b>{recipe.producoesPossiveis > 0 ? `${recipe.producoesPossiveis} produção(ões)` : 'Insumos insuficientes'}</b></div>) : <p>Nenhuma receita cadastrada.</p>}</section>
     <section className="dashboard-production-panel"><h2>Alertas de insumos</h2>{productionData?.baixoEstoque?.length ? productionData.baixoEstoque.map((product) => <div className="dashboard-production-row" key={product._id}><span><strong>{product.nome}</strong><small>Código {product.codigo}</small></span><b>{product.estoqueInsumos} / mínimo {product.estoqueMinimoInsumos} {product.unidadeVenda}</b></div>) : <p>Nenhum insumo abaixo do mínimo.</p>}</section>
