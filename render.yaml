@@ -22,4 +22,4 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://pdv-cafe-api-willplacetech.onrender.com/api
+        value: https://saborabraco.onrender.com/api
