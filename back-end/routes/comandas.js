@@ -46,7 +46,7 @@ async function ajustarEstoque(itens, operacao, session) {
   }
 }
 
-router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const filter = req.query.status ? { status: req.query.status } : {};
     const { dataInicio, dataFim } = req.query;
@@ -71,7 +71,7 @@ router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), as
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -96,7 +96,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) =>
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -121,7 +121,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -146,7 +146,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), a
   } finally { await session.endSession(); }
 });
 
-router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -165,7 +165,7 @@ router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), 
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -223,7 +223,7 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador'), async (req
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -240,7 +240,7 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador'), async 
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -273,7 +273,7 @@ router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador'), async (
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
