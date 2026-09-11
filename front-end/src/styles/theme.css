@@ -151,6 +151,29 @@ button:hover {
   border-color: var(--accent-primary);
 }
 
+.dashboard-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dashboard-tabs button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 700 12px var(--font-body);
+  cursor: pointer;
+}
+
+.dashboard-tabs button.active {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 button:active {
   transform: scale(0.98);
 }
