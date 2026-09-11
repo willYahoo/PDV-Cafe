@@ -29,6 +29,10 @@ const ProductSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  aFazer: {
+    type: Boolean,
+    default: false,
+  },
   preco: {
     type: Number,
     required: [true, 'Preço é obrigatório'],

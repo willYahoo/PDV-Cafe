@@ -40,6 +40,13 @@ router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => 
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
+router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
+  try {
+    const comandas = await Comanda.find({ status: 'aberta', 'itens.aFazer': true }).sort({ createdAt: 1 });
+    res.json(comandas.map((comanda) => ({ ...comanda.toObject(), itens: comanda.itens.filter((item) => item.aFazer) })));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
 router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
@@ -53,7 +60,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) =>
       const modificadores = Array.isArray(item.modificadores)
         ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
         : [];
-      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
+      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer) });
     }
     await ajustarEstoque(itens, 'baixar', session);
     const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
@@ -79,7 +86,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
     await ajustarEstoque([{ produtoId: product.id, quantidade }], 'baixar', session);
-    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
+    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer) });
     comanda.estoqueBaixado = true;
     await comanda.save({ session });
     await session.commitTransaction();

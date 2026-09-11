@@ -8,7 +8,7 @@ const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', '
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, producaoPropria: false, controladoComoInsumo: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, producaoPropria: false, controladoComoInsumo: false };
   const [form, setForm] = useState(vazio);
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
@@ -58,7 +58,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), custo: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
+    const dados = { ...form, preco: parseFloat(form.preco), custo: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -73,7 +73,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custo || '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custo || '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -182,6 +182,10 @@ export default function Products() {
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
               <input type="checkbox" checked={form.vendidoFracionado} onChange={e => setForm({ ...form, vendidoFracionado: e.target.checked })} />
               Permitir venda fracionada
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
+              <input type="checkbox" checked={form.aFazer} onChange={e => setForm({ ...form, aFazer: e.target.checked })} />
+              A Fazer (enviar para a cozinha)
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
               <input type="checkbox" checked={form.producaoPropria} onChange={e => setForm({ ...form, producaoPropria: e.target.checked })} />
