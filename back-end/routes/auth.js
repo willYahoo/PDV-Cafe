@@ -39,7 +39,7 @@ router.post('/register', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
     const username = typeof req.body.username === 'string' ? req.body.username.toLowerCase().trim() : '';
     const password = req.body.password;
-    const role = ['admin', 'operador', 'cozinha'].includes(req.body.role) ? req.body.role : 'operador';
+    const role = ['admin', 'operador', 'cozinha', 'garcom'].includes(req.body.role) ? req.body.role : 'operador';
     if (username.length < 2 || typeof password !== 'string' || password.length < 4) return res.status(400).json({ msg: 'Informe usuário e senha com pelo menos 4 caracteres' });
     if (await User.exists({ username })) return res.status(409).json({ msg: 'Este usuário já existe' });
     const user = await User.create({ username, password, role });
