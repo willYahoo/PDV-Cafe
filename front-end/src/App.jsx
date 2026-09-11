@@ -13,6 +13,7 @@ import ContasReceber from './pages/ContasReceber';
 import Users from './pages/Users';
 import Comandas from './pages/Comandas.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import Production from './pages/Production.jsx';
 
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
                     <Route path="/contas-receber" element={<ContasReceber />} />
                     <Route path="/usuarios" element={<Users />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/producao" element={<Production />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/pdv" />} />
                 </Route>

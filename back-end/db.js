@@ -4,8 +4,11 @@ const Product = require('./models/Product');
 const Customer = require('./models/Customer');
 const Order = require('./models/Order');
 const Comanda = require('./models/Comanda');
+const Recipe = require('./models/Recipe');
+const Production = require('./models/Production');
+const StockMovement = require('./models/StockMovement');
 
-const models = [User, Product, Customer, Order, Comanda];
+const models = [User, Product, Customer, Order, Comanda, Recipe, Production, StockMovement];
 
 const connectDB = async () => {
   try {
