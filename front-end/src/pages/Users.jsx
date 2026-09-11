@@ -67,6 +67,7 @@ export default function Users() {
           Perfil
           <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} style={inputStyle}>
             <option value="operador">Operador</option>
+            <option value="cozinha">Cozinha</option>
             <option value="admin">Administrador</option>
           </select>
         </label>

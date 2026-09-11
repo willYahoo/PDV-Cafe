@@ -8,6 +8,7 @@ const itemSchema = new mongoose.Schema({
   quantidade: { type: Number, required: true, min: 0.001 },
   unidadeVenda: { type: String, enum: ['un', 'kg', 'g', 'l', 'ml'], default: 'un' },
   modificadores: { type: [String], default: [] },
+  aFazer: { type: Boolean, default: false },
 }, { _id: true });
 
 const comandaSchema = new mongoose.Schema({

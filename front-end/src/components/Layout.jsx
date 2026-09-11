@@ -18,6 +18,7 @@ export default function Layout() {
   const ativoProdutos = location.pathname.startsWith('/produtos');
   const ativoClientes = location.pathname.startsWith('/clientes');
   const ativoComandas = location.pathname.startsWith('/comandas');
+  const ativoCozinha = location.pathname.startsWith('/cozinha');
   const ativoContasReceber = location.pathname.startsWith('/contas-receber');
   const ativoUsuarios = location.pathname.startsWith('/usuarios');
   const ativoDashboard = location.pathname.startsWith('/dashboard');
@@ -42,6 +43,10 @@ export default function Layout() {
   if (location.pathname.startsWith('/comandas')) {
     iconePagina = '☕';
     tituloPagina = 'Comandas';
+  }
+  if (location.pathname.startsWith('/cozinha')) {
+    iconePagina = '🍳';
+    tituloPagina = 'Cozinha';
   }
   if (location.pathname.startsWith('/contas-receber')) {
     iconePagina = '💰';
@@ -155,6 +160,7 @@ export default function Layout() {
             <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
             <span style={{ whiteSpace: 'nowrap' }}>Comandas</span>
           </Link>
+          {(user?.role === 'admin' || user?.role === 'operador' || user?.role === 'cozinha') && <Link to="/cozinha" className={ativoCozinha ? 'nav-link active' : 'nav-link'}><span style={{ fontSize: 18, flexShrink: 0 }}>🍳</span><span style={{ whiteSpace: 'nowrap' }}>Cozinha</span></Link>}
           {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'nav-link active' : 'nav-link'}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>📦</span>
             <span style={{ whiteSpace: 'nowrap' }}>Produtos</span>
@@ -221,6 +227,7 @@ export default function Layout() {
           <span style={{ fontSize: 20, lineHeight: 1 }}>📋</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Comandas</span>
         </Link>
+        {(user?.role === 'admin' || user?.role === 'operador' || user?.role === 'cozinha') && <Link to="/cozinha" className={ativoCozinha ? 'bottom-link active' : 'bottom-link'}><span style={{ fontSize: 20, lineHeight: 1 }}>🍳</span><span style={{ fontSize: '10px' }}>Cozinha</span></Link>}
         {user?.role === 'admin' && <Link to="/produtos" className={ativoProdutos ? 'bottom-link active' : 'bottom-link'}>
           <span style={{ fontSize: 20, lineHeight: 1 }}>📦</span>
           <span style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>Produtos</span>
