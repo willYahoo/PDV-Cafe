@@ -34,11 +34,41 @@ const ProductSchema = new mongoose.Schema({
     required: [true, 'Preço é obrigatório'],
     min: [0, 'Preço não pode ser negativo'],
   },
+  custo: {
+    type: Number,
+    default: 0,
+    min: [0, 'Custo não pode ser negativo'],
+  },
   estoque: {
     type: Number,
     required: true,
     default: 0,
     min: [0, 'Estoque não pode ser negativo'],
+  },
+  estoqueInsumos: {
+    type: Number,
+    default: 0,
+    min: [0, 'Estoque de insumos não pode ser negativo'],
+  },
+  estoqueMinimo: {
+    type: Number,
+    default: 0,
+    min: [0, 'Estoque mínimo não pode ser negativo'],
+  },
+  estoqueMinimoInsumos: {
+    type: Number,
+    default: 0,
+    min: [0, 'Estoque mínimo de insumos não pode ser negativo'],
+  },
+  estoqueInsumosInicial: { type: Number, min: 0 },
+  estoqueInsumosInicialData: { type: String },
+  producaoPropria: {
+    type: Boolean,
+    default: false,
+  },
+  controladoComoInsumo: {
+    type: Boolean,
+    default: false,
   },
   estoqueMaximo: {
     type: Number,
