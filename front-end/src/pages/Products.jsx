@@ -3,7 +3,7 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 
-const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Grãos e insumos', 'Outros'];
+const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Insumos', 'Outros'];
 
 
 export default function Products() {
@@ -267,7 +267,7 @@ const corCategoria = {
   Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417' },
   Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61' },
   'Café da manhã': { bg: 'rgba(126,157,107,.16)', txt: '#547642' },
-  'Grãos e insumos': { bg: 'rgba(117,93,69,.14)', txt: '#73583f' },
+  Insumos: { bg: 'rgba(117,93,69,.14)', txt: '#73583f' },
   Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b' }
 };
 
