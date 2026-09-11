@@ -232,7 +232,7 @@ export default function Products() {
         </div>
 
 
-        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span>{p.producaoPropria && <small className="product-tag">Produção própria</small>}</div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small> Custo R$ {Number(p.custo || 0).toFixed(2).replace('.', ',')}</small><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} venda · {p.estoqueInsumos || 0} insumo(s)</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
+        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span>{p.producaoPropria && <small className="product-tag">PP</small>}</div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small> Custo R$ {Number(p.custo || 0).toFixed(2).replace('.', ',')}</small><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} venda · {p.estoqueInsumos || 0} insumo(s)</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
       </div>
 
 
@@ -254,7 +254,7 @@ export default function Products() {
         .product-admin-footer strong { display: block; color: var(--accent-primary); font-size: 17px; }
         .product-admin-footer small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
         .product-admin-footer .low-stock { color: var(--error-bg); font-weight: 700; }
-        .product-tag { display: inline-block; margin-top: 8px; color: var(--success-bg); font-size: 10px; font-weight: 700; }
+        .product-tag { display: inline-block; margin-left: 10px; color: var(--success-bg); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
       `}</style>
     </div>
   );
