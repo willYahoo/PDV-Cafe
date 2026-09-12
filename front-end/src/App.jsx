@@ -13,8 +13,6 @@ import ContasReceber from './pages/ContasReceber';
 import Users from './pages/Users';
 import Comandas from './pages/Comandas.jsx';
 import Dashboard from './pages/Dashboard.jsx';
-import Production from './pages/Production.jsx';
-import Kitchen from './pages/Kitchen.jsx';
 
 
 export default function App() {
@@ -29,9 +27,6 @@ export default function App() {
                 <Route element={<Layout />}>
                   <Route path="/pdv" element={<PDV />} />
                   <Route path="/comandas" element={<Comandas />} />
-                  <Route element={<RoleRoute roles={['admin', 'operador', 'cozinha']} />}>
-                    <Route path="/cozinha" element={<Kitchen />} />
-                  </Route>
                   <Route element={<RoleRoute roles={['admin']} />}>
                     <Route path="/produtos" element={<Products />} />
                     <Route path="/clientes" element={<Customers />} />
@@ -39,7 +34,6 @@ export default function App() {
                     <Route path="/contas-receber" element={<ContasReceber />} />
                     <Route path="/usuarios" element={<Users />} />
                     <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/producao" element={<Production />} />
                   </Route>
                   <Route path="*" element={<Navigate to="/pdv" />} />
                 </Route>

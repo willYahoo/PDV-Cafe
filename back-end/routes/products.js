@@ -8,9 +8,9 @@ const router = express.Router();
 const units = ['un', 'kg', 'g', 'l', 'ml'];
 const dataLocal = () => { const agora = new Date(); return `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`; };
 const antesDasOito = () => new Date().getHours() < 8;
-const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('custo').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueInsumos').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('estoqueMinimoInsumos').optional().isFloat({ min: 0 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('producaoPropria').optional().isBoolean(), body('controladoComoInsumo').optional().isBoolean()];
+const validations = [body('codigo').trim().notEmpty(), body('nome').trim().notEmpty(), body('preco').isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()];
 
-router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const { search, categoria } = req.query;
     const query = {};
@@ -20,7 +20,7 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const limite = Math.min(Math.max(Number(req.query.limite) || 8, 1), 20);
     const ranking = await Order.aggregate([
@@ -34,7 +34,7 @@ router.get('/mais-vendidos', auth, auth.allowRoles('admin', 'operador', 'garcom'
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/:id', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });
@@ -50,14 +50,12 @@ router.post('/', auth, auth.allowRoles('admin'), validations, async (req, res) =
     const exists = await Product.findOne({ codigo: { $regex: new RegExp(`^${data.codigo.trim()}$`, 'i') } });
     if (exists) return res.status(400).json({ msg: 'Já existe um produto com este código' });
     const estoque = Number(data.estoque) || 0;
-    const estoqueInsumos = Number(data.estoqueInsumos) || 0;
-    const fichaTecnica = Array.isArray(data.fichaTecnica) ? data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade })).filter((item) => item.produtoId && Number.isFinite(item.quantidade) && item.quantidade > 0 && units.includes(item.unidade)) : [];
-    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), custo: Number(data.custo) || 0, estoque, estoqueInsumos, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), estoqueInsumosInicial: estoqueInsumos, estoqueInsumosInicialData: dataLocal(), estoqueMinimoInsumos: Number(data.estoqueMinimoInsumos) || 0, unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), aFazer: Boolean(data.aFazer), fichaTecnica, producaoPropria: Boolean(data.producaoPropria), controladoComoInsumo: Boolean(data.controladoComoInsumo), createdBy: req.user.id });
+    const product = await Product.create({ codigo: data.codigo.trim(), nome: data.nome.trim(), categoria: data.categoria || 'Outros', preco: Number(data.preco), estoque, estoqueInicialDia: estoque, estoqueInicialData: dataLocal(), unidadeVenda: data.unidadeVenda || 'un', vendidoFracionado: Boolean(data.vendidoFracionado), createdBy: req.user.id });
     res.status(201).json(product);
   } catch (err) { res.status(400).json({ msg: err.code === 11000 ? 'Código duplicado' : err.message }); }
 });
 
-router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean(), body('aFazer').optional().isBoolean(), body('fichaTecnica').optional().isArray()], async (req, res) => {
+router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().trim().notEmpty(), body('nome').optional().trim().notEmpty(), body('preco').optional().isFloat({ min: 0 }), body('estoque').optional().isFloat({ min: 0 }), body('estoqueMaximo').optional().isFloat({ min: 0.001 }), body('unidadeVenda').optional().isIn(units), body('vendidoFracionado').optional().isBoolean()], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
   try {
@@ -68,16 +66,10 @@ router.put('/:id', auth, auth.allowRoles('admin'), [body('codigo').optional().tr
     }
     const fields = {};
     ['codigo', 'nome', 'categoria', 'unidadeVenda'].forEach((key) => { if (data[key] !== undefined) fields[key] = String(data[key]).trim(); });
-    ['preco', 'custo', 'estoque', 'estoqueInsumos', 'estoqueMaximo', 'estoqueMinimoInsumos'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
-    ['vendidoFracionado', 'aFazer', 'producaoPropria', 'controladoComoInsumo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Boolean(data[key]); });
-    if (data.fichaTecnica !== undefined) fields.fichaTecnica = data.fichaTecnica.map((item) => ({ produtoId: item.produtoId, quantidade: Number(item.quantidade), unidade: item.unidade }));
+    ['preco', 'estoque', 'estoqueMaximo'].forEach((key) => { if (data[key] !== undefined) fields[key] = Number(data[key]); });
     if (data.estoque !== undefined && antesDasOito()) {
       fields.estoqueInicialDia = Number(data.estoque);
       fields.estoqueInicialData = dataLocal();
-    }
-    if (data.estoqueInsumos !== undefined && antesDasOito()) {
-      fields.estoqueInsumosInicial = Number(data.estoqueInsumos);
-      fields.estoqueInsumosInicialData = dataLocal();
     }
     const product = await Product.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true, runValidators: true });
     if (!product) return res.status(404).json({ msg: 'Produto não encontrado' });

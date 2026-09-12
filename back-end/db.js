@@ -4,11 +4,8 @@ const Product = require('./models/Product');
 const Customer = require('./models/Customer');
 const Order = require('./models/Order');
 const Comanda = require('./models/Comanda');
-const Recipe = require('./models/Recipe');
-const Production = require('./models/Production');
-const StockMovement = require('./models/StockMovement');
 
-const models = [User, Product, Customer, Order, Comanda, Recipe, Production, StockMovement];
+const models = [User, Product, Customer, Order, Comanda];
 
 const connectDB = async () => {
   try {
@@ -17,7 +14,6 @@ const connectDB = async () => {
     await Product.updateMany({ categoria: 'Alimentos' }, { $set: { categoria: 'Café da manhã' } });
     await Product.updateMany({ categoria: 'Bebidas' }, { $set: { categoria: 'Bebidas geladas' } });
     await Product.updateMany({ categoria: 'Padaria' }, { $set: { categoria: 'Salgados' } });
-    await Product.updateMany({ categoria: 'Grãos e insumos' }, { $set: { categoria: 'Insumos' } });
     await Product.updateMany({ categoria: { $in: ['Limpeza', 'Higiene', 'Hortifruti'] } }, { $set: { categoria: 'Outros' } });
     await Product.updateMany({}, { $set: { unidadeVenda: 'un', vendidoFracionado: false } });
 

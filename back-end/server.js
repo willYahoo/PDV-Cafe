@@ -56,7 +56,6 @@ app.use('/api/auth/login', rateLimit({
 // Rotas
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/products', require('./routes/products'));
-app.use('/api/production', require('./routes/production'));
 app.use('/api/customers', require('./routes/customers'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/comandas', require('./routes/comandas'));
@@ -71,7 +70,6 @@ app.get('/api', (req, res) => {
     endpoints: {
       auth: '/api/auth',
       products: '/api/products',
-      production: '/api/production',
       customers: '/api/customers',
       orders: '/api/orders',
       comandas: '/api/comandas',

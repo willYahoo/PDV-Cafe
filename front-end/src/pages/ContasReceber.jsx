@@ -3,7 +3,6 @@ import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
-import DateInput from '../components/DateInput.jsx';
 
 
 const statusCor = {
@@ -615,13 +614,13 @@ Obrigado! 🙏`
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Início</label>
-          <DateInput value={inicio} onChange={setInicio} style={{
+          <input type="date" value={inicio} onChange={e => setInicio(e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }} />
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Data Fim</label>
-          <DateInput value={fim} onChange={setFim} style={{
+          <input type="date" value={fim} onChange={e => setFim(e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }} />
         </div>

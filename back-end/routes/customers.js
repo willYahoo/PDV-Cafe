@@ -10,7 +10,7 @@ const normalizarTelefone = (telefone) => String(telefone || '').replace(/\D/g, '
 // @route   GET api/customers
 // @desc    Listar clientes com busca
 // @access  Privado
-router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
   try {
     const { search } = req.query;
     let query = {};
@@ -37,7 +37,7 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
 // @access  Privado
 router.post(
   '/',
-  [auth, auth.allowRoles('admin', 'garcom'), body('nome', 'Nome é obrigatório').not().isEmpty()],
+  [auth, auth.allowRoles('admin'), body('nome', 'Nome é obrigatório').not().isEmpty()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
