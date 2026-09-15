@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 
-const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Café da manhã', 'Grãos e insumos', 'Outros'];
+const categorias = ['Bebidas Quentes', 'Bebidas geladas', 'Salgados', 'Doces', 'Insumos', 'Outros'];
 
 
 export default function Products() {
   const [produtos, setProdutos] = useState([]);
-  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', estoque: '', unidadeVenda: 'un', vendidoFracionado: false };
+  const vazio = { codigo: '', nome: '', categoria: 'Bebidas Quentes', preco: '', custo: '', estoque: '', estoqueInsumos: '', estoqueMinimoInsumos: '', unidadeVenda: 'un', vendidoFracionado: false, aFazer: false, fichaTecnica: [], producaoPropria: false, controladoComoInsumo: false };
   const [form, setForm] = useState(vazio);
+
+  const handleCategoriaChange = (categoria) => {
+    setForm((prev) => ({
+      ...prev,
+      categoria,
+      controladoComoInsumo: categoria === 'Insumos' ? true : prev.controladoComoInsumo,
+    }));
+  };
   const [editing, setEditing] = useState(null);
   const [filtro, setFiltro] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
@@ -58,7 +67,7 @@ export default function Products() {
       return showToast('⚠️ Este código já está cadastrado! Use outro.', 'warning');
     }
 
-    const dados = { ...form, preco: parseFloat(form.preco), estoque: parseFloat(form.estoque) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado };
+    const dados = { ...form, preco: parseFloat(form.preco), custo: parseFloat(form.custo) || 0, estoque: parseFloat(form.estoque) || 0, estoqueInsumos: parseFloat(form.estoqueInsumos) || 0, estoqueMinimoInsumos: parseFloat(form.estoqueMinimoInsumos) || 0, unidadeVenda: form.unidadeVenda, vendidoFracionado: form.vendidoFracionado, aFazer: form.aFazer, fichaTecnica: form.fichaTecnica.filter((item) => item.produtoId && Number(item.quantidade) > 0).map((item) => ({ ...item, quantidade: Number(item.quantidade) })), producaoPropria: form.producaoPropria, controladoComoInsumo: form.controladoComoInsumo };
     try {
       editing ? await api.put(`/products/${editing._id}`, dados) : await api.post('/products', dados);
       showToast(editing ? '✅ Produto atualizado!' : '✅ Produto cadastrado!', 'success');
@@ -73,7 +82,7 @@ export default function Products() {
 
   const alterar = (p) => {
     setEditing(p);
-    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, estoque: p.estoque, unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado) });
+    setForm({ codigo: p.codigo, nome: p.nome, categoria: p.categoria, preco: p.preco, custo: p.custo || '', estoque: p.estoque, estoqueInsumos: p.estoqueInsumos || '', estoqueMinimoInsumos: p.estoqueMinimoInsumos || '', unidadeVenda: p.unidadeVenda || 'un', vendidoFracionado: Boolean(p.vendidoFracionado), aFazer: Boolean(p.aFazer), fichaTecnica: p.fichaTecnica || [], producaoPropria: Boolean(p.producaoPropria), controladoComoInsumo: Boolean(p.controladoComoInsumo) });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -83,6 +92,16 @@ export default function Products() {
     await api.delete(`/products/${id}`);
     showToast('Produto removido', 'warning');
     carregar();
+  };
+
+  const corrigirHistoricoBolos = async () => {
+    if (!window.confirm('Corrigir o histórico de bolos registrados em gramas para quilogramas? O valor das vendas será preservado.')) return;
+    try {
+      const response = await api.post('/products/migracoes/corrigir-bolos-gramas');
+      showToast(`${response.data.produtosCorrigidos || 0} produto(s) e ${response.data.itensCorrigidos || 0} item(ns) histórico(s) corrigidos.`, 'success');
+    } catch (err) {
+      showToast(err.response?.data?.msg || 'Não foi possível corrigir o histórico.', 'error');
+    }
   };
 
 
@@ -100,9 +119,14 @@ export default function Products() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px', color: 'var(--text-primary)' }}>📦 Cadastro de Produtos</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>Gerencie seu catálogo de produtos</p>
+      <div className="page-heading">
+        <div>
+          <h1>📦 Cadastro de Produtos</h1>
+          <p>Gerencie seu catálogo de produtos</p>
+        </div>
+        <button type="button" onClick={corrigirHistoricoBolos} style={{ padding: '10px 14px', border: '1px solid var(--accent-border)', borderRadius: 10, background: 'var(--accent-light)', color: 'var(--accent-primary)', fontWeight: 700, cursor: 'pointer' }}>
+          Corrigir bolos do catálogo e histórico
+        </button>
       </div>
 
 
@@ -114,58 +138,39 @@ export default function Products() {
           {editing ? '✏️ Editar Produto' : '➕ Novo Produto'}
         </h3>
         <form onSubmit={submit}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }} className="form-grid-prod">
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>
-                Código {!editing && <span style={{ color: 'var(--success-bg)', fontSize: 11 }}>(automático)</span>}
-              </label>
-              <input 
-                placeholder="Automático" 
-                value={form.codigo} 
-                readOnly={!editing}
-                onChange={e => setForm({ ...form, codigo: e.target.value })}
-                style={{
-                  ...inputStyle,
-                  background: !editing ? 'var(--bg-tertiary)' : 'var(--input-bg)',
-                  cursor: !editing ? 'not-allowed' : 'text'
-                }}
-              />
+          <section className="product-form-section">
+            <div className="product-section-title"><span>📋</span><div><strong>DADOS BÁSICOS</strong><small>Identificação e preço de venda</small></div></div>
+            <div className="product-form-grid product-basic-grid">
+              <label className="product-code-field">Código {!editing && <small>(automático)</small>}<input placeholder="Automático" value={form.codigo} readOnly={!editing} onChange={e => setForm({ ...form, codigo: e.target.value })} style={{ ...inputStyle, background: !editing ? 'var(--bg-tertiary)' : 'var(--input-bg)', cursor: !editing ? 'not-allowed' : 'text' }} /></label>
+              <label>Nome *<input placeholder="Nome do produto" value={form.nome} required onChange={e => setForm({ ...form, nome: e.target.value })} /></label>
+              <label>Categoria<select value={form.categoria} onChange={e => handleCategoriaChange(e.target.value)}>{categorias.map(c => <option key={c}>{c}</option>)}</select></label>
+              <label>Preço de venda (R$) *<input type="number" step="0.01" min={0} placeholder="0,00" value={form.preco} required onChange={e => setForm({ ...form, preco: e.target.value })} /></label>
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Nome *</label>
-              <input placeholder="Nome do produto" value={form.nome} required
-                onChange={e => setForm({ ...form, nome: e.target.value })}
-                style={inputStyle} />
+          </section>
+
+          <section className="product-form-section">
+            <div className="product-section-title"><span>📦</span><div><strong>ESTOQUE</strong><small>Quantidade disponível para venda</small></div></div>
+            <div className="product-form-grid product-stock-grid">
+              <label>Estoque atual<input type="number" step="0.001" min={0} placeholder="0" value={form.estoque} onChange={e => setForm({ ...form, estoque: e.target.value })} /></label>
+              <label>Unidade de venda<select value={form.unidadeVenda} onChange={e => setForm({ ...form, unidadeVenda: e.target.value })}>{['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade} value={unidade}>{unidade}</option>)}</select></label>
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Categoria</label>
-              <select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })} style={inputStyle}>
-                {categorias.map(c => <option key={c}>{c}</option>)}
-              </select>
+          </section>
+
+          <section className="product-form-section">
+            <div className="product-section-title"><span>⚙️</span><div><strong>TIPO DE PRODUTO</strong><small>Defina como este produto será usado na operação</small></div></div>
+            <div className="product-check-grid">
+              <label><input type="checkbox" checked={form.categoria === 'Insumos' || form.controladoComoInsumo} disabled={form.categoria === 'Insumos'} onChange={(e) => setForm((prev) => ({ ...prev, controladoComoInsumo: prev.categoria === 'Insumos' ? true : e.target.checked }))} />Controlar também como insumo</label>
+              <label><input type="checkbox" checked={form.producaoPropria} onChange={e => setForm({ ...form, producaoPropria: e.target.checked })} />Produto de produção própria</label>
+              <label><input type="checkbox" checked={form.vendidoFracionado} onChange={e => setForm({ ...form, vendidoFracionado: e.target.checked })} />Permitir venda fracionada</label>
+              <label><input type="checkbox" checked={form.aFazer} onChange={e => setForm({ ...form, aFazer: e.target.checked })} />Enviar automaticamente para Cozinha</label>
             </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Preço (R$) *</label>
-              <input type="number" step="0.01" min={0} placeholder="0.00" value={form.preco} required
-                onChange={e => setForm({ ...form, preco: e.target.value })}
-                style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Estoque</label>
-              <input type="number" step="0.001" min={0} placeholder="0" value={form.estoque}
-                onChange={e => setForm({ ...form, estoque: e.target.value })}
-                style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 5, display: 'block' }}>Unidade de venda</label>
-              <select value={form.unidadeVenda} onChange={e => setForm({ ...form, unidadeVenda: e.target.value })} style={inputStyle}>
-                {['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade} value={unidade}>{unidade}</option>)}
-              </select>
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, color: 'var(--text-secondary)', fontSize: 12, fontWeight: 700 }}>
-              <input type="checkbox" checked={form.vendidoFracionado} onChange={e => setForm({ ...form, vendidoFracionado: e.target.checked })} />
-              Permitir venda fracionada
-            </label>
-          </div>
+            {form.producaoPropria && <Link className="production-link" to="/producao">Após cadastrar, monte a receita aqui →</Link>}
+            {form.aFazer && <div className="technical-sheet"><strong>Ficha técnica do produto</strong><small>Insumos consumidos por unidade deste produto.</small>{form.fichaTecnica.map((item, index) => <div className="technical-row" key={`${index}-${item.produtoId}`}><select value={item.produtoId} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, produtoId: e.target.value } : current) })}><option value="">Ingrediente</option>{produtos.filter((produto) => produto._id !== editing?._id).map((produto) => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select><input type="number" min="0.001" step="0.001" placeholder="Quantidade" value={item.quantidade} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, quantidade: e.target.value } : current) })} /><select value={item.unidade || 'un'} onChange={e => setForm({ ...form, fichaTecnica: form.fichaTecnica.map((current, itemIndex) => itemIndex === index ? { ...current, unidade: e.target.value } : current) })}>{['un', 'kg', 'g', 'l', 'ml'].map(unidade => <option key={unidade}>{unidade}</option>)}</select><button type="button" onClick={() => setForm({ ...form, fichaTecnica: form.fichaTecnica.filter((_, itemIndex) => itemIndex !== index) })}>×</button></div>)}<button type="button" className="technical-add" onClick={() => setForm({ ...form, fichaTecnica: [...form.fichaTecnica, { produtoId: '', quantidade: '', unidade: 'un' }] })}>Adicionar insumo</button></div>}
+          </section>
+
+          {(form.categoria === 'Insumos' || form.controladoComoInsumo) && <section className="product-form-section product-insumo-section"><div className="product-section-title"><span>🧺</span><div><strong>ESTOQUE DE INSUMO</strong><small>Controle separado para produção</small></div></div><div className="product-form-grid"><label>Estoque de Insumo<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueInsumos} onChange={e => setForm({ ...form, estoqueInsumos: e.target.value })} /></label><label>Estoque Mínimo<input type="number" step="0.001" min={0} placeholder="0" value={form.estoqueMinimoInsumos} onChange={e => setForm({ ...form, estoqueMinimoInsumos: e.target.value })} /></label></div></section>}
+
+          <section className="product-form-section product-cost-section"><div className="product-section-title"><span>💰</span><div><strong>CUSTO</strong><small>Preenchido pela Calculadora de Custo</small></div></div><label>Custo unitário (R$)<input type="number" value={form.custo} disabled readOnly placeholder="Calculado automaticamente" /></label><small className="field-help">Calculado automaticamente na Calculadora de Custo</small></section>
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
             <button type="submit" style={{
               flex: 1, padding: '12px', background: 'var(--accent-primary)', color: '#fff',
@@ -202,7 +207,7 @@ export default function Products() {
         </div>
 
 
-        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span></div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} em estoque</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
+        {filtrados.length === 0 ? <div style={{ textAlign: 'center', padding: 36, color: 'var(--text-secondary)', fontSize: 13 }}>Nenhum produto nesta categoria</div> : <div className="product-admin-grid">{filtrados.map(p => { const cat = corCategoria[p.categoria] || corCategoria.Outros; return <article key={p._id} className="product-admin-card"><div><span style={{ background: cat.bg, color: cat.txt, padding: '3px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700 }}>{p.categoria}</span><h4>{p.nome}</h4><span className="product-code">Código {p.codigo}</span>{p.producaoPropria && <small className="product-tag">PP</small>}</div><div className="product-admin-footer"><div><strong>R$ {Number(p.preco).toFixed(2).replace('.', ',')}</strong><small> Custo R$ {Number(p.custo || 0).toFixed(2).replace('.', ',')}</small><small className={p.estoque <= 5 ? 'low-stock' : ''}>{p.estoque} venda · {p.estoqueInsumos || 0} insumo(s)</small></div><div className="product-card-actions"><button onClick={() => alterar(p)} style={btnTable}>Editar</button><button onClick={() => remover(p._id)} style={{ ...btnTable, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error-bg)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>Excluir</button></div></div></article>; })}</div>}
       </div>
 
 
@@ -213,6 +218,41 @@ export default function Products() {
         @media (min-width: 1024px) {
           .form-grid-prod { grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr !important; }
         }
+        .product-form-section {
+          display: grid;
+          gap: 14px;
+          margin-top: 14px;
+          padding: 16px;
+          border: 1px solid var(--border-light);
+          border-radius: 12px;
+          background: var(--bg-tertiary);
+        }
+        .product-section-title {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid var(--border-light);
+        }
+        .product-section-title > span { font-size: 17px; line-height: 1; }
+        .product-section-title div { display: grid; gap: 3px; }
+        .product-section-title strong { color: var(--text-primary); font-size: 11px; letter-spacing: .06em; }
+        .product-section-title small { color: var(--text-secondary); font-size: 11px; font-weight: 400; }
+        .product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .product-form-section label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+        .product-form-section label input:not([type="checkbox"]),
+        .product-form-section label select { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); font: inherit; }
+        .product-basic-grid { grid-template-columns: 110px minmax(180px, 1.6fr) minmax(160px, 1fr) minmax(150px, 1fr); }
+        .product-code-field input { font-size: 13px !important; }
+        .product-code-field small { color: var(--text-tertiary); font-size: 10px; font-weight: 400; }
+        .product-check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 16px; }
+        .product-check-grid label { display: flex; align-items: center; min-height: 36px; }
+        .product-check-grid input { width: 17px; height: 17px; margin: 0 8px 0 0; accent-color: var(--accent-primary); }
+        .production-link { justify-self: start; color: var(--accent-primary); font-size: 12px; font-weight: 700; text-decoration: none; }
+        .production-link:hover { text-decoration: underline; }
+        .product-cost-section input:disabled { background: var(--bg-secondary); color: var(--text-secondary); cursor: not-allowed; opacity: .75; }
+        .field-help { color: var(--text-secondary); font-size: 11px; }
+        .product-insumo-section { border-color: var(--accent-border); }
         .product-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
         .product-admin-card { min-height: 150px; display: flex; flex-direction: column; padding: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--bg-tertiary); }
         .product-admin-card h4 { margin: 12px 0 4px; color: var(--text-primary); font-size: 14px; line-height: 1.3; }
@@ -224,6 +264,16 @@ export default function Products() {
         .product-admin-footer strong { display: block; color: var(--accent-primary); font-size: 17px; }
         .product-admin-footer small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
         .product-admin-footer .low-stock { color: var(--error-bg); font-weight: 700; }
+        .product-tag { display: inline-block; margin-left: 10px; color: var(--success-bg); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+        .technical-sheet { grid-column: 1 / -1; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent-border); border-radius: 10px; background: var(--accent-light); }
+        .technical-sheet strong { color: var(--accent-primary); font-size: 13px; }
+        .technical-sheet small { color: var(--text-secondary); font-size: 11px; }
+        .technical-row { display: grid; grid-template-columns: 2fr 1fr 80px 34px; gap: 6px; }
+        .technical-row input, .technical-row select { min-width: 0; padding: 8px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg); color: var(--input-text); }
+        .technical-row button { border: 1px solid var(--border-color); border-radius: 8px; color: var(--error-bg); cursor: pointer; }
+        .technical-add { justify-self: start; padding: 7px 10px; border: 1px solid var(--accent-border); border-radius: 8px; background: var(--bg-secondary); color: var(--accent-primary); font-size: 11px; font-weight: 700; cursor: pointer; }
+        @media (max-width: 1023px) { .product-basic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 640px) { .product-form-grid, .product-basic-grid, .product-check-grid { grid-template-columns: 1fr; } .technical-row { grid-template-columns: 1fr; } .technical-row button { min-height: 36px; } }
       `}</style>
     </div>
   );
@@ -231,13 +281,12 @@ export default function Products() {
 
 
 const corCategoria = {
-  'Bebidas Quentes': { bg: 'rgba(169,79,43,.14)', txt: '#8f3f20' },
-  'Bebidas geladas': { bg: 'rgba(61,139,140,.14)', txt: '#267477' },
-  Salgados: { bg: 'rgba(210,137,48,.16)', txt: '#9a6417' },
-  Doces: { bg: 'rgba(190,104,120,.14)', txt: '#9d4e61' },
-  'Café da manhã': { bg: 'rgba(126,157,107,.16)', txt: '#547642' },
-  'Grãos e insumos': { bg: 'rgba(117,93,69,.14)', txt: '#73583f' },
-  Outros: { bg: 'rgba(100,116,139,.12)', txt: '#64748b' }
+  'Bebidas Quentes': { bg: 'var(--category-hot-bg)', txt: 'var(--category-hot-text)' },
+  'Bebidas geladas': { bg: 'var(--category-cold-bg)', txt: 'var(--category-cold-text)' },
+  Salgados: { bg: 'var(--category-savory-bg)', txt: 'var(--category-savory-text)' },
+  Doces: { bg: 'var(--category-sweet-bg)', txt: 'var(--category-sweet-text)' },
+  Insumos: { bg: 'var(--category-supply-bg)', txt: 'var(--category-supply-text)' },
+  Outros: { bg: 'var(--category-other-bg)', txt: 'var(--category-other-text)' }
 };
 
 

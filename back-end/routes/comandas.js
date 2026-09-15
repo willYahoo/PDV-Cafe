@@ -8,10 +8,27 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
 
 async function ajustarEstoque(itens, operacao, session) {
+  const produtos = await Product.find({ _id: { $in: itens.map((item) => item.produtoId) } }).session(session);
+  const porId = new Map(produtos.map((produto) => [String(produto._id), produto]));
   const totais = new Map();
-  itens.forEach((item) => totais.set(String(item.produtoId), (totais.get(String(item.produtoId)) || 0) + Number(item.quantidade || 0)));
+  const insumos = new Map();
+  itens.forEach((item) => {
+    const quantidade = Number(item.quantidade || 0);
+    const produto = porId.get(String(item.produtoId));
+    const ficha = item.insumosConsumidos?.length ? item.insumosConsumidos : produto?.fichaTecnica;
+    if (produto?.aFazer && ficha?.length) {
+      ficha.forEach((ingrediente) => {
+        const key = String(ingrediente.produtoId);
+        insumos.set(key, (insumos.get(key) || 0) + Number(ingrediente.quantidade) * quantidade);
+      });
+    } else {
+      const key = String(item.produtoId);
+      totais.set(key, (totais.get(key) || 0) + quantidade);
+    }
+  });
   for (const [produtoId, quantidade] of totais) {
     if (operacao === 'baixar') {
       const product = await Product.findOneAndUpdate({ _id: produtoId, estoque: { $gte: quantidade } }, { $inc: { estoque: -quantidade } }, { new: true, session });
@@ -20,9 +37,17 @@ async function ajustarEstoque(itens, operacao, session) {
       await Product.findByIdAndUpdate(produtoId, { $inc: { estoque: quantidade } }, { session });
     }
   }
+  for (const [produtoId, quantidade] of insumos) {
+    if (operacao === 'baixar') {
+      const product = await Product.findOneAndUpdate({ _id: produtoId, estoqueInsumos: { $gte: quantidade } }, { $inc: { estoqueInsumos: -quantidade } }, { new: true, session });
+      if (!product) throw new Error(`Estoque de insumos insuficiente para o ingrediente ${produtoId}`);
+    } else {
+      await Product.findByIdAndUpdate(produtoId, { $inc: { estoqueInsumos: quantidade } }, { session });
+    }
+  }
 }
 
-router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   try {
     const filter = req.query.status ? { status: req.query.status } : {};
     const { dataInicio, dataFim } = req.query;
@@ -40,7 +65,14 @@ router.get('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => 
   } catch (err) { res.status(500).json({ msg: err.message }); }
 });
 
-router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.get('/cozinha', auth, auth.allowRoles('admin', 'operador', 'cozinha'), async (req, res) => {
+  try {
+    const comandas = await Comanda.find({ status: 'aberta', 'itens.aFazer': true }).sort({ createdAt: 1 });
+    res.json(comandas.map((comanda) => ({ ...comanda.toObject(), itens: comanda.itens.filter((item) => item.aFazer) })));
+  } catch (err) { res.status(500).json({ msg: err.message }); }
+});
+
+router.post('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -49,11 +81,11 @@ router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) =>
       const quantidade = Number(item.quantidade);
       const product = await Product.findById(item.produtoId).session(session);
       if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) throw new Error('Item inválido');
-      if (!product.vendidoFracionado && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+      if (!permiteFracionar(product) && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
       const modificadores = Array.isArray(item.modificadores)
         ? item.modificadores.filter((value) => typeof value === 'string').slice(0, 10)
         : [];
-      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
+      itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     }
     await ajustarEstoque(itens, 'baixar', session);
     const [comanda] = await Comanda.create([{ clienteId: req.body.clienteId || undefined, clienteNome: req.body.clienteNome || 'Cliente não identificado', observacao: req.body.observacao, itens, estoqueBaixado: itens.length > 0, atendente: req.user.username }], { session });
@@ -65,7 +97,7 @@ router.post('/', auth, auth.allowRoles('admin', 'operador'), async (req, res) =>
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -74,12 +106,12 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req
     const product = await Product.findById(req.body.produtoId).session(session);
     if (!comanda || comanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda não está aberta' });
     if (!product || !Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Item inválido' });
-    if (!product.vendidoFracionado && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    if (!permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const modificadores = Array.isArray(req.body.modificadores)
       ? req.body.modificadores.filter((item) => typeof item === 'string').slice(0, 10)
       : [];
     await ajustarEstoque([{ produtoId: product.id, quantidade }], 'baixar', session);
-    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores });
+    comanda.itens.push({ produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda, modificadores, aFazer: Boolean(product.aFazer), insumosConsumidos: (product.fichaTecnica || []).map((ingrediente) => ({ produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })) });
     comanda.estoqueBaixado = true;
     await comanda.save({ session });
     await session.commitTransaction();
@@ -90,7 +122,7 @@ router.post('/:id/itens', auth, auth.allowRoles('admin', 'operador'), async (req
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -101,7 +133,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), a
     if (!item) return res.status(404).json({ msg: 'Item não encontrado' });
     if (!Number.isFinite(quantidade) || quantidade < 0.001) return res.status(400).json({ msg: 'Quantidade inválida' });
     const product = await Product.findById(item.produtoId).session(session);
-    if (product && !product.vendidoFracionado && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
+    if (product && !permiteFracionar(product) && !Number.isInteger(quantidade)) return res.status(400).json({ msg: 'Este produto é vendido por unidade' });
     const diferenca = quantidade - Number(item.quantidade || 0);
     if (diferenca > 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: diferenca }], 'baixar', session);
     if (diferenca < 0) await ajustarEstoque([{ produtoId: item.produtoId, quantidade: Math.abs(diferenca) }], 'devolver', session);
@@ -115,7 +147,7 @@ router.patch('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), a
   } finally { await session.endSession(); }
 });
 
-router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -134,7 +166,7 @@ router.delete('/:id/itens/:itemId', auth, auth.allowRoles('admin', 'operador'), 
   } finally { await session.endSession(); }
 });
 
-router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -159,6 +191,8 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador'), async (req
       quantidade: item.quantidade,
       unidadeVenda: item.unidadeVenda,
       modificadores: [...(item.modificadores || [])],
+      aFazer: Boolean(item.aFazer),
+      insumosConsumidos: (item.insumosConsumidos || []).map((ingrediente) => (ingrediente.toObject ? ingrediente.toObject() : { produtoId: ingrediente.produtoId, quantidade: ingrediente.quantidade, unidade: ingrediente.unidade })),
     }));
 
     if (comandaOrigem.estoqueBaixado) {
@@ -190,7 +224,7 @@ router.post('/:id/mover', auth, auth.allowRoles('admin', 'operador'), async (req
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -207,7 +241,7 @@ router.patch('/:id/cancelar', auth, auth.allowRoles('admin', 'operador'), async 
   } finally { await session.endSession(); }
 });
 
-router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador'), async (req, res) => {
+router.patch('/:id/cliente', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
     session.startTransaction();
@@ -292,7 +326,7 @@ router.post('/:id/fechar', auth, auth.allowRoles('admin', 'operador'), async (re
           : [{ tipo: pagamentoFinal, valorRecebido: total, dataPagamento: new Date(), quitado: true }],
     });
     await order.save({ session });
-    if (customer) {
+    if (customer && !utilizacaoInterna) {
       await Customer.findByIdAndUpdate(customer.id, { $inc: { cafesFidelidade: 1 } }, { session });
       comanda.clienteId = customer.id;
       if (nome) comanda.clienteNome = nome;

@@ -2,6 +2,7 @@ services:
   - type: web
     runtime: node
     name: pdv-cafe-api-willplacetech
+    branch: backup-main-com-insights-20260912
     region: oregon
     plan: free
     rootDir: back-end
@@ -12,14 +13,19 @@ services:
       - key: MONGO_URI
         sync: false
       - key: FRONTEND_URL
-        value: https://pdv-cafe-web-willplacetech.onrender.com
+        value: https://sabordabraco.onrender.com,https://pdv-cafe-web-willplacetech.onrender.com,https://pdv-mern-1.onrender.com
 
   - type: web
     runtime: static
-    name: pdv-cafe-web-willplacetech
+    name: sabordabraco
+    branch: backup-main-com-insights-20260912
     rootDir: front-end
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_URL
         value: https://pdv-cafe-api-willplacetech.onrender.com/api

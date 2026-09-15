@@ -6,6 +6,7 @@ const Product = require('../models/Product');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
+const permiteFracionar = (product) => Boolean(product?.vendidoFracionado) || ['kg', 'g', 'l', 'ml'].includes(product?.unidadeVenda);
 const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 async function buildOrderItems(rawItems, session) {
@@ -22,7 +23,7 @@ async function buildOrderItems(rawItems, session) {
     const product = byId.get(String(item.produtoId));
     const quantity = Number(item.quantidade);
     if (!product) throw new Error('Produto não encontrado');
-    if (!product.vendidoFracionado && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+    if (!permiteFracionar(product) && !Number.isInteger(quantity)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
     return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
   });
   for (const [productId, quantity] of totals) {
@@ -69,6 +70,42 @@ router.get('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   } catch (err) { res.status(400).json({ msg: err.message }); }
 });
 
+router.patch('/:id/alterar-comanda', auth, auth.allowRoles('admin'), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: 'Pedido não encontrado' });
+    if (!['pendente', 'parcial'].includes(order.status)) return res.status(400).json({ msg: 'Somente pedidos em aberto podem ser movidos para outra comanda' });
+
+    const comandaId = req.body.comandaId;
+    if (!comandaId) return res.status(400).json({ msg: 'Informe a comanda de destino' });
+    if (!mongoose.isValidObjectId(comandaId)) return res.status(400).json({ msg: 'Comanda inválida' });
+
+    const novaComanda = await Comanda.findById(comandaId);
+    if (!novaComanda || novaComanda.status !== 'aberta') return res.status(400).json({ msg: 'Comanda de destino não está aberta' });
+
+    if (order.comandaId && String(order.comandaId) !== String(comandaId)) {
+      const comandaAnterior = await Comanda.findById(order.comandaId);
+      if (comandaAnterior && String(comandaAnterior._id) !== String(comandaId)) {
+        comandaAnterior.pedidoId = undefined;
+        comandaAnterior.observacao = comandaAnterior.observacao || '';
+        await comandaAnterior.save();
+      }
+    }
+
+    if (order.comandaId && String(order.comandaId) === String(comandaId)) {
+      return res.json(order);
+    }
+
+    order.comandaId = comandaId;
+    novaComanda.pedidoId = order._id;
+    await Promise.all([order.save(), novaComanda.save()]);
+
+    res.json(order);
+  } catch (err) {
+    res.status(400).json({ msg: err.message });
+  }
+});
+
 router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req, res) => {
   const session = await mongoose.startSession();
   try {
@@ -90,7 +127,7 @@ router.patch('/:id/adicionar-itens', auth, auth.allowRoles('admin'), async (req,
       const product = porId.get(String(item.produtoId));
       const quantidade = Number(item.quantidade);
       if (!product) throw new Error('Produto não encontrado');
-      if (!product.vendidoFracionado && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
+      if (!permiteFracionar(product) && !Number.isInteger(quantidade)) throw new Error(`O produto "${product.nome}" é vendido somente por unidade`);
       return { produtoId: product.id, codigo: product.codigo, nome: product.nome, precoUnitario: product.preco, quantidade, unidadeVenda: product.unidadeVenda };
     });
     for (const [produtoId, quantidade] of quantidades) {

@@ -35,11 +35,13 @@ export default function Users() {
 
   return (
     <section style={{ maxWidth: 620, margin: '0 auto' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>Novo usuário</h2>
-        <p style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>Cadastre acessos para sua equipe.</p>
+      <div className="page-heading">
+        <div>
+          <h1>Novo usuário</h1>
+          <p>Cadastre acessos para sua equipe.</p>
+        </div>
       </div>
-      <form onSubmit={handleSubmit} style={{ background: 'var(--bg-secondary)', padding: 24, borderRadius: 14, boxShadow: 'var(--shadow-md)' }}>
+      <form onSubmit={handleSubmit} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: 24, borderRadius: 16, boxShadow: 'var(--shadow-sm)' }}>
         <label style={{ display: 'block', marginBottom: 16, color: 'var(--text-secondary)', fontWeight: 600 }}>
           Usuário
           <input
@@ -67,6 +69,8 @@ export default function Users() {
           Perfil
           <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} style={inputStyle}>
             <option value="operador">Operador</option>
+            <option value="cozinha">Cozinha</option>
+            <option value="garcom">Garçom</option>
             <option value="admin">Administrador</option>
           </select>
         </label>
