@@ -1,0 +1,35 @@
+name: Backup Diário do Banco
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar MongoDB Tools
+        run: |
+          wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | sudo apt-key add -
+          echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools
+
+      - name: Fazer backup
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          mongodump --uri="${{ secrets.MONGO_URI }}" --gzip --archive=backup-$DATE.gz
+
+      - name: Verificar tamanho
+        run: |
+          SIZE=$(stat -c%s backup-*.gz)
+          echo "Tamanho: $SIZE bytes"
+          if [ "$SIZE" -lt 100000 ]; then echo "::error::Backup muito pequeno!"; exit 1; fi
+
+      - name: Salvar backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-mongodb
+          path: backup-*.gz
+          retention-days: 90
