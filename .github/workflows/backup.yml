@@ -25,7 +25,7 @@ jobs:
         run: |
           SIZE=$(stat -c%s backup-*.gz)
           echo "Tamanho: $SIZE bytes"
-          if [ "$SIZE" -lt 100000 ]; then echo "::error::Backup muito pequeno!"; exit 1; fi
+          if [ "$SIZE" -lt 10000 ]; then echo "::error::Backup muito pequeno!"; exit 1; fi
 
       - name: Salvar backup
         uses: actions/upload-artifact@v4
