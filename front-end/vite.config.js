@@ -7,36 +7,35 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['Abraco1.png', 'Abraco5.png', 'Abraco10.png', 'Abraco11.png'],
-      manifest: {
-        name: 'Sabor de Abraço',
-        short_name: 'Sabor de Abraço',
-        description: 'Cafeteria e sistema de atendimento do Sabor de Abraço',
-        theme_color: '#3a2015',
-        background_color: '#f8efe7',
-        start_url: '/',
-        display: 'standalone',
-        display_override: ['window-controls-overlay', 'standalone'],
-        orientation: 'portrait',
-        scope: '/',
-        icons: [
+      manifest: false,
+      includeAssets: ['Abraco1.png', 'Abraco5.png', 'Abraco10.png', 'Abraco11.png', 'apple-touch-icon.png'],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,webmanifest,woff2}'],
+        cleanupOutdatedCaches: true,
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
+        runtimeCaching: [
           {
-            src: '/Abraco1.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
+            urlPattern: ({ request, url }) => Boolean(request.headers.get('authorization')) || /\/api(?:\/|$)/.test(url.pathname),
+            handler: 'NetworkOnly',
           },
           {
-            src: '/Abraco1.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
-          }
-        ]
+            urlPattern: ({ request }) => request.destination === 'document' || request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'app-shell',
+              networkTimeoutSeconds: 3,
+            },
+          },
+          {
+            urlPattern: ({ request }) => ['style', 'script', 'font', 'image', 'worker'].includes(request.destination),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'static-assets',
+            },
+          },
+        ],
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
-      }
+      // No iOS, cache pode ser limpo após ~7 dias sem uso.
     })
   ],
 })

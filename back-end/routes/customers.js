@@ -32,6 +32,20 @@ router.get('/', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req
   }
 });
 
+router.get('/:id', auth, auth.allowRoles('admin', 'operador', 'garcom'), async (req, res) => {
+  try {
+    const customer = await Customer.findById(req.params.id);
+    if (!customer) return res.status(404).json({ msg: 'Cliente não encontrado' });
+    res.json(customer);
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Cliente não encontrado' });
+    }
+    res.status(500).send('Erro no servidor');
+  }
+});
+
 // @route   POST api/customers
 // @desc    Criar cliente
 // @access  Privado
@@ -45,7 +59,7 @@ router.post(
     }
 
     try {
-      const { nome, telefone, endereco, cpf } = req.body;
+      const { nome, telefone, endereco, cpf, aniversario } = req.body;
       const telefoneNormalizado = normalizarTelefone(telefone);
       if (telefoneNormalizado && await Customer.exists({ telefone: telefoneNormalizado })) {
         return res.status(409).json({ msg: 'Telefone já cadastrado' });
@@ -55,6 +69,7 @@ router.post(
         nome: nome.trim(),
         telefone: telefoneNormalizado,
         endereco: endereco ? endereco.trim() : '',
+        aniversario: aniversario ? aniversario.trim() : '',
         cpf: cpf ? cpf.trim() : '',
         createdBy: req.user.id,
       });
@@ -74,7 +89,7 @@ router.post(
 // @access  Privado
 router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
   try {
-    const { nome, telefone, endereco, cpf } = req.body;
+    const { nome, telefone, endereco, cpf, aniversario } = req.body;
     const telefoneNormalizado = telefone !== undefined ? normalizarTelefone(telefone) : undefined;
     if (telefoneNormalizado && await Customer.exists({ telefone: telefoneNormalizado, _id: { $ne: req.params.id } })) {
       return res.status(409).json({ msg: 'Telefone já cadastrado' });
@@ -84,6 +99,7 @@ router.put('/:id', auth, auth.allowRoles('admin'), async (req, res) => {
     if (nome) updateFields.nome = nome.trim();
     if (telefone !== undefined) updateFields.telefone = telefoneNormalizado;
     if (endereco !== undefined) updateFields.endereco = endereco.trim();
+    if (aniversario !== undefined) updateFields.aniversario = aniversario.trim();
     if (cpf !== undefined) updateFields.cpf = cpf.trim();
 
     const customer = await Customer.findByIdAndUpdate(

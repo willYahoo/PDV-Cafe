@@ -1,9 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { criarOperacoesFinanceiras } from '../utils/operacaoFinanceira';
+import { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import api from '../services/api.jsx';
-import { useToast } from '../components/Toast.jsx';
-import { buildNotaVendaHtml, compartilharNotaWhatsApp } from '../utils/notaVenda.js';
+import { permiteFracionar } from '../utils/quantidadeVenda.js';
+import { useToast } from '../components/useToast.js';
+import { buildNotaVendaHtml, compartilharNotaWhatsApp, textoSeguro } from '../utils/notaVenda.js';
 import PagamentoResultadoModal from '../components/PagamentoResultadoModal.jsx';
 import DateInput from '../components/DateInput.jsx';
+import { FORMAS_PAGAMENTO, dataBR, normalizarPagamentos, rotuloPagamento, saldoDevedor, statusPagamentoInfo, totalPago as somarPagamentos } from '../utils/formasPagamento.jsx';
 
 
 const statusCor = {
@@ -14,23 +17,15 @@ const statusCor = {
 };
 
 
-const formaPagamentoLabel = {
-  dinheiro: '💵 Dinheiro',
-  pix: '🔄 PIX',
-  credito_loja: '🏪 Crédito Loja',
-  cartao_credito: '💳 Cartão Crédito',
-  cartao_debito: '💳 Cartão Débito',
-};
-
-
 export default function ContasReceber() {
   const [carregando, setCarregando] = useState(true);
+  const [aba, setAba] = useState('pedidos');
   const [pedidos, setPedidos] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [produtos, setProdutos] = useState([]);
   const [comandasAbertas, setComandasAbertas] = useState([]);
   const [clienteFiltro, setClienteFiltro] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState('pendente');
+  const [statusFiltro, setStatusFiltro] = useState('abertas');
   const [inicio, setInicio] = useState('');
   const [fim, setFim] = useState('');
   const [pagamentoModal, setPagamentoModal] = useState(null);
@@ -38,37 +33,53 @@ export default function ContasReceber() {
   const [quitarClienteModal, setQuitarClienteModal] = useState(false);
   const [pagamentoMultiploModal, setPagamentoMultiploModal] = useState(null);
   const [novoPedidoModal, setNovoPedidoModal] = useState(null);
-  const [alterarComandaModal, setAlterarComandaModal] = useState(null);
-  const [novaComandaId, setNovaComandaId] = useState('');
   const [novoPedidoForm, setNovoPedidoForm] = useState({ produtoId: '', quantidade: '1', nomeSolicitante: '', observacao: '', itens: [] });
-  const [formPagamento, setFormPagamento] = useState({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
-  const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'credito_loja', observacao: '' });
+  const [formPagamento, setFormPagamento] = useState({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
+  const [formPagamentoMultiplo, setFormPagamentoMultiplo] = useState({ tipo: 'dinheiro', observacao: '' });
+  const [formComanda, setFormComanda] = useState(null);
   const [selecionados, setSelecionados] = useState(new Set());
+  const operacoesRef = useRef(null);
+  if (operacoesRef.current === null) { operacoesRef.current = criarOperacoesFinanceiras(api); }
+  const recebendoRef = useRef(false);
+  const [recebendo, setRecebendo] = useState(false);
+  useEffect(() => {
+    if (!pagamentoModal && !formComanda && !pagamentoMultiploModal && !quitarClienteModal) operacoesRef.current.limpar();
+  }, [pagamentoModal, formComanda, pagamentoMultiploModal, quitarClienteModal]);
   const { showToast } = useToast();
+  const produtoNovoPedido = produtos.find((produto) => produto._id === novoPedidoForm.produtoId);
+  const passoQuantidadeNovoPedido = permiteFracionar(produtoNovoPedido) ? '0.001' : '1';
+  const saldoPagamentoIndividual = Math.max(0, Number(pagamentoModal?.total || 0) - somarPagamentos(pagamentoModal?.pagamentos));
 
 
-  useEffect(() => { carregarDados(); }, []);
-  useEffect(() => { 
-    carregarPedidos(); 
-    setSelecionados(new Set());
-  }, [clienteFiltro, statusFiltro, inicio, fim]);
-
-
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
-      const [clientesResponse, produtosResponse, comandasResponse] = await Promise.all([
+      const [clientesResponse, produtosResponse] = await Promise.all([
         api.get('/customers'),
-        api.get('/products'),
-        api.get('/comandas?status=aberta')
+        api.get('/products')
       ]);
       setClientes(clientesResponse.data);
       setProdutos(produtosResponse.data);
-      setComandasAbertas(comandasResponse.data || []);
     } catch { showToast('Erro ao carregar clientes', 'error'); }
-  };
+  }, [showToast]);
 
 
-  const carregarPedidos = async () => {
+  const carregarComandas = useCallback(async () => {
+    if (aba !== 'comandas') return;
+    try {
+      const params = new URLSearchParams();
+      if (clienteFiltro) params.append('clienteId', clienteFiltro);
+      if (inicio) params.append('dataInicio', inicio);
+      if (fim) params.append('dataFim', fim);
+      const res = await api.get(`/comandas/a-receber?${params}`);
+      setComandasAbertas(res.data || []);
+    } catch {
+      showToast('Erro ao carregar comandas em aberto', 'error');
+      setComandasAbertas([]);
+    }
+  }, [aba, clienteFiltro, inicio, fim, showToast]);
+
+
+  const carregarPedidos = useCallback(async () => {
     try {
       setCarregando(true);
       const params = new URLSearchParams();
@@ -79,14 +90,26 @@ export default function ContasReceber() {
 
       const res = await api.get(`/orders?${params}`);
       setPedidos(res.data || []);
-    } catch { 
-      showToast('Erro ao carregar pedidos', 'error'); 
+      setSelecionados(new Set());
+    } catch {
+      showToast('Erro ao carregar pedidos', 'error');
       setPedidos([]);
     } finally {
       setCarregando(false);
     }
-  };
+  }, [clienteFiltro, statusFiltro, inicio, fim, showToast]);
 
+
+  useEffect(() => {
+    const inicializar = async () => { await carregarDados(); };
+    inicializar();
+  }, [carregarDados]);
+  useEffect(() => {
+    const atualizar = async () => {
+      await Promise.all([carregarPedidos(), carregarComandas()]);
+    };
+    atualizar();
+  }, [carregarPedidos, carregarComandas, aba]);
 
   const totais = useMemo(() => {
     let totalEmAberto = 0;
@@ -101,9 +124,7 @@ export default function ContasReceber() {
       const valorTotal = parseFloat(pedido?.total) || 0;
       totalBruto += valorTotal;
 
-      const valorPago = Array.isArray(pedido?.pagamentos)
-        ? pedido.pagamentos.reduce((soma, pg) => soma + (parseFloat(pg?.valorRecebido) || 0), 0)
-        : 0;
+      const valorPago = somarPagamentos(pedido?.pagamentos);
       totalPagoGeral += valorPago;
 
       const status = String(pedido?.status || '').toLowerCase();
@@ -114,6 +135,67 @@ export default function ContasReceber() {
 
     return { totalEmAberto, totalBruto, totalPagoGeral };
   }, [pedidos]);
+
+
+  const totaisComandas = useMemo(() => {
+    let emAberto = 0;
+    let bruto = 0;
+    let pago = 0;
+    comandasAbertas.forEach((comanda) => {
+      const valorTotal = Number(comanda?.valorTotal || 0);
+      const valorPago = somarPagamentos(comanda?.historicoPagamentos);
+      bruto += valorTotal;
+      pago += valorPago;
+      emAberto += saldoDevedor(valorTotal, comanda?.historicoPagamentos);
+    });
+    return { emAberto, bruto, pago };
+  }, [comandasAbertas]);
+
+
+  const totaisExibidos = aba === 'comandas'
+    ? { emAberto: totaisComandas.emAberto, bruto: totaisComandas.bruto, pago: totaisComandas.pago }
+    : { emAberto: totais.totalEmAberto, bruto: totais.totalBruto, pago: totais.totalPagoGeral };
+
+
+  const abrirReceberComanda = (comanda) => {
+    const saldo = saldoDevedor(comanda?.valorTotal, comanda?.historicoPagamentos);
+    setFormComanda({ comanda, formaPagamento: 'dinheiro', valor: saldo > 0 ? saldo.toFixed(2).replace('.', ',') : '', observacao: '' });
+  };
+
+
+  /** Aceita só dígitos e uma vírgula, evitando que o campo congele como number input. */
+  const digitarValorComanda = (texto) => {
+    const limpo = String(texto ?? '').replace(/[^\d,]/g, '').replace(/^,+/, '');
+    const partes = limpo.split(',');
+    const normalizado = partes.length > 1 ? `${partes[0]},${partes.slice(1).join('')}` : partes[0];
+    setFormComanda((atual) => ({ ...atual, valor: normalizado }));
+  };
+
+
+  const registrarRecebimentoComanda = async (event) => {
+    event.preventDefault();
+    if (!formComanda?.comanda?._id) return;
+    const valor = Number(String(formComanda.valor || '').replace(',', '.'));
+    const saldo = saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos);
+    if (!Number.isFinite(valor) || valor <= 0) return showToast('Informe um valor válido', 'warning');
+    if (valor > saldo) return showToast(`O valor não pode ser maior que o saldo em aberto (R$ ${saldo.toFixed(2)})`, 'warning');
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
+    try {
+      await operacoesRef.current.enviar('patch', `/comandas/${formComanda.comanda._id}/receber-parcial`, {
+        valorRecebido: valor,
+        formaPagamento: formComanda.formaPagamento,
+        observacao: formComanda.observacao,
+      });
+      const restante = Math.max(0, Number((saldo - valor).toFixed(2)));
+      showToast(restante > 0 ? `Recebido R$ ${valor.toFixed(2)}. Falta R$ ${restante.toFixed(2)}.` : `Comanda #${formComanda.comanda.numero} quitada.`, 'success');
+      setFormComanda(null);
+      await carregarComandas();
+    } catch (error) {
+      showToast(error.response?.data?.msg || 'Não foi possível registrar o recebimento', 'error');
+    } finally { recebendoRef.current = false; setRecebendo(false); }
+  };
 
 
   const toggleSelecionarTodos = () => {
@@ -156,9 +238,7 @@ export default function ContasReceber() {
       .filter(p => selecionados.has(p._id))
       .reduce((soma, pedido) => {
         const valorTotal = parseFloat(pedido?.total) || 0;
-        const valorPago = Array.isArray(pedido?.pagamentos)
-          ? pedido.pagamentos.reduce((s, pg) => s + (parseFloat(pg?.valorRecebido) || 0), 0)
-          : 0;
+        const valorPago = somarPagamentos(pedido?.pagamentos);
         return soma + Math.max(0, valorTotal - valorPago);
       }, 0);
   }, [pedidos, selecionados]);
@@ -174,7 +254,7 @@ export default function ContasReceber() {
     if (clientes.size > 1) return showToast('Selecione apenas pedidos do mesmo cliente', 'warning');
     setPagamentoMultiploModal(true);
     setFormPagamentoMultiplo({
-      tipo: 'credito_loja',
+      tipo: 'dinheiro',
       observacao: ''
     });
   };
@@ -196,6 +276,9 @@ export default function ContasReceber() {
 
   // ✅ Registrar pagamento de TODOS os marcados
   const registrarPagamentoMultiplo = async () => {
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
     const pedidosSelecionados = pedidos.filter(p => selecionados.has(p._id));
     const pedidosRecebidos = [];
     let sucessos = 0;
@@ -204,16 +287,14 @@ export default function ContasReceber() {
     for (const pedido of pedidosSelecionados) {
       try {
         const valorTotal = parseFloat(pedido?.total) || 0;
-        const valorPago = Array.isArray(pedido?.pagamentos)
-          ? pedido.pagamentos.reduce((s, pg) => s + (parseFloat(pg?.valorRecebido) || 0), 0)
-          : 0;
+        const valorPago = somarPagamentos(pedido.pagamentos);
         const valorAReceber = valorTotal - valorPago;
 
-        const { data: pedidoAtualizado } = await api.patch(`/orders/${pedido._id}/pagar`, {
+        const { data: pedidoAtualizado } = await operacoesRef.current.enviar('patch', `/orders/${pedido._id}/pagar`, {
           tipo: formPagamentoMultiplo.tipo,
           valorRecebido: valorAReceber,
           observacao: formPagamentoMultiplo.observacao
-        });
+        }, { reusarConcluido: true });
         pedidosRecebidos.push(pedidoAtualizado);
         sucessos++;
       } catch {
@@ -221,12 +302,13 @@ export default function ContasReceber() {
       }
     }
 
-    setPagamentoMultiploModal(null);
-    setSelecionados(new Set());
-    if (pedidosRecebidos.length > 0) {
+    if (falhas === 0) { setPagamentoMultiploModal(null); setSelecionados(new Set()); }
+    if (falhas === 0 && pedidosRecebidos.length > 0) {
       setPagamentoConcluido(consolidarPedidos(pedidosRecebidos));
     }
-    carregarPedidos();
+    if (falhas === 0) carregarPedidos();
+    recebendoRef.current = false;
+    setRecebendo(false);
 
     if (sucessos > 0 && falhas === 0) {
       showToast(`✅ ${sucessos} pedido(s) recebido(s) com sucesso!`, 'success');
@@ -241,14 +323,12 @@ export default function ContasReceber() {
   // ✅ Receber pedido individual
   const abrirModalReceber = (pedido) => {
     const valorTotal = parseFloat(pedido?.total) || 0;
-    const valorPago = Array.isArray(pedido?.pagamentos)
-      ? pedido.pagamentos.reduce((soma, pg) => soma + (parseFloat(pg?.valorRecebido) || 0), 0)
-      : 0;
+    const valorPago = somarPagamentos(pedido?.pagamentos);
     const valorAReceber = (valorTotal - valorPago).toFixed(2);
 
     setPagamentoModal(pedido);
     setFormPagamento({
-      tipo: 'credito_loja',
+      tipo: 'dinheiro',
       valorRecebido: valorAReceber,
       observacao: ''
     });
@@ -256,23 +336,26 @@ export default function ContasReceber() {
 
 
   const registrarPagamento = async () => {
+    const valorRecebido = Number(String(formPagamento.valorRecebido || '').replace(',', '.'));
+    if (!Number.isFinite(valorRecebido) || valorRecebido <= 0) return showToast('Informe um valor válido', 'warning');
+    if (valorRecebido > saldoPagamentoIndividual) return showToast(`O valor não pode ser maior que o saldo pendente (R$ ${saldoPagamentoIndividual.toFixed(2)})`, 'warning');
+
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
     try {
-      const valorTotal = Number(pagamentoModal?.total) || 0;
-      const valorPago = Array.isArray(pagamentoModal?.pagamentos)
-        ? pagamentoModal.pagamentos.reduce((soma, pagamento) => soma + (Number(pagamento?.valorRecebido) || 0), 0)
-        : 0;
-      const valorAReceber = Math.max(0, valorTotal - valorPago).toFixed(2);
-      const { data: pedidoAtualizado } = await api.patch(`/orders/${pagamentoModal._id}/pagar`, {
+      const { data: pedidoAtualizado } = await operacoesRef.current.enviar('patch', `/orders/${pagamentoModal._id}/pagar`, {
         tipo: formPagamento.tipo,
-        valorRecebido: valorAReceber,
+        valorRecebido,
         observacao: formPagamento.observacao,
       });
-      showToast('✅ Pagamento registrado!', 'success');
+      const restante = Math.max(0, Number((saldoPagamentoIndividual - valorRecebido).toFixed(2)));
+      showToast(restante > 0 ? `Recebido R$ ${valorRecebido.toFixed(2)}. Falta R$ ${restante.toFixed(2)}.` : 'Pedido quitado.', 'success');
       setPagamentoModal(null);
       setPagamentoConcluido(pedidoAtualizado);
-      setFormPagamento({ tipo: 'credito_loja', valorRecebido: '', observacao: '' });
+      setFormPagamento({ tipo: 'dinheiro', valorRecebido: '', observacao: '' });
       carregarPedidos();
-    } catch { showToast('Erro ao registrar pagamento', 'error'); }
+    } catch { showToast('Erro ao registrar pagamento', 'error'); } finally { recebendoRef.current = false; setRecebendo(false); }
   };
 
 
@@ -282,13 +365,16 @@ export default function ContasReceber() {
   };
 
   const confirmarQuitacaoCliente = async () => {
+    if (recebendoRef.current) return;
+    recebendoRef.current = true;
+    setRecebendo(true);
     try {
-      const { data } = await api.patch(`/orders/cliente/${clienteFiltro}/quitar`, { tipo: formPagamentoMultiplo.tipo, observacao: formPagamentoMultiplo.observacao });
+      const { data } = await operacoesRef.current.enviar('patch', `/orders/cliente/${clienteFiltro}/quitar`, { tipo: formPagamentoMultiplo.tipo, observacao: formPagamentoMultiplo.observacao });
       setQuitarClienteModal(false);
       setPagamentoConcluido(consolidarPedidos(data.pedidos));
       showToast('✅ Todas as pendências do cliente foram quitadas!', 'success');
       carregarPedidos();
-    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao quitar pendências', 'error'); }
+    } catch (error) { showToast(error.response?.data?.msg || 'Erro ao quitar pendências', 'error'); } finally { recebendoRef.current = false; setRecebendo(false); }
   };
 
   const abrirNovoPedido = (pedido) => {
@@ -296,31 +382,12 @@ export default function ContasReceber() {
     setNovoPedidoForm({ produtoId: '', quantidade: '1', nomeSolicitante: '', observacao: '', itens: [] });
   };
 
-  const abrirAlterarComanda = (pedido) => {
-    const comandaSelecionada = pedido.comandaId || comandasAbertas[0]?._id || '';
-    setAlterarComandaModal(pedido);
-    setNovaComandaId(comandaSelecionada);
-  };
-
-  const confirmarAlterarComanda = async () => {
-    if (!alterarComandaModal) return;
-    try {
-      await api.patch(`/orders/${alterarComandaModal._id}/alterar-comanda`, { comandaId: novaComandaId || null });
-      setAlterarComandaModal(null);
-      setNovaComandaId('');
-      carregarPedidos();
-      showToast('✅ Comanda alterada com sucesso!', 'success');
-    } catch (error) {
-      showToast(error.response?.data?.msg || 'Erro ao alterar comanda', 'error');
-    }
-  };
-
   const adicionarItemNovoPedido = () => {
-    if (!novoPedidoForm.produtoId || Number(novoPedidoForm.quantidade) < 0.001) return showToast('Selecione um produto e uma quantidade válida', 'warning');
+    if (!novoPedidoForm.produtoId || !Number.isFinite(Number(novoPedidoForm.quantidade)) || Number(novoPedidoForm.quantidade) < Number(passoQuantidadeNovoPedido)) return showToast('Selecione um produto e uma quantidade válida', 'warning');
     const produto = produtos.find((item) => item._id === novoPedidoForm.produtoId);
     const quantidade = Number(novoPedidoForm.quantidade);
     if (!produto) return;
-    if (!produto.vendidoFracionado && !Number.isInteger(quantidade)) return showToast('Este produto é vendido somente por unidade', 'warning');
+    if (!permiteFracionar(produto) && !Number.isInteger(quantidade)) return showToast('Este produto é vendido somente por unidade', 'warning');
     setNovoPedidoForm((form) => ({ ...form, produtoId: '', quantidade: '1', itens: [...form.itens, { produtoId: produto._id, nome: produto.nome, quantidade }] }));
   };
 
@@ -347,50 +414,6 @@ export default function ContasReceber() {
       janela.document.close();
       return;
     }
-    const totalPago = Array.isArray(pedido.pagamentos)
-      ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
-      : 0;
-
-    const data = new Date().toLocaleString('pt-BR');
-    
-    const cupom = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Comprovante de Quitação #${pedido.numero}</title>
-        <style>
-          * { font-family: 'Courier New', monospace; font-size: 12px; }
-          body { width: 76mm; margin: 0; padding: 4mm; }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .linha { border-top: 1px dashed #000; margin: 8px 0; }
-          @media print { @page { margin: 0; size: 80mm auto; } }
-        </style>
-      </head>
-      <body>
-        <div class="center bold" style="font-size:16px;">COMPROVANTE DE QUITAÇÃO</div>
-        <div class="center">Sabor de Abraço</div>
-        <div class="linha"></div>
-        <div><span class="bold">Pedido:</span> #${pedido.numero}</div>
-        <div><span class="bold">Cliente:</span> ${pedido.clienteNome}</div>
-        <div><span class="bold">Data Emissão:</span> ${data}</div>
-        <div class="linha"></div>
-        <div><span class="bold">Valor Total:</span> R$ ${parseFloat(pedido.total).toFixed(2).replace('.',',')}</div>
-        <div><span class="bold">Total Pago:</span> R$ ${totalPago.toFixed(2).replace('.',',')}</div>
-        <div style="color:green; font-weight:bold; font-size:14px; margin-top:10px;">✅ QUITADO</div>
-        <div class="linha"></div>
-        <div class="center">
-          Declaro que o valor foi recebido.<br><br>
-          ___________________________<br>
-          Assinatura / Data
-        </div>
-        <script>window.onload=()=>{print();close()}</script>
-      </body>
-      </html>
-    `;
-    const janela = window.open('', '_blank', 'width=350,height=600');
-    janela.document.write(cupom);
-    janela.document.close();
   };
 
 
@@ -401,126 +424,11 @@ export default function ContasReceber() {
       janela.document.close();
       return;
     }
-    const totalPago = Array.isArray(pedido.pagamentos)
-      ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
-      : 0;
-    const falta = Math.max(0, parseFloat(pedido.total) - totalPago);
-    const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
-    
-    const itensHtml = pedido.itens.map(item => `
-      <div style="display:flex; justify-content:space-between; border-bottom: 1px dashed #000; padding: 4px 0;">
-        <div style="flex:1; margin-right:8px;">
-          <div style="font-weight:bold;">${item.nome}</div>
-          <div style="font-size:10px;">Qtd: ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')}</div>
-        </div>
-        <div style="font-weight:bold; white-space:nowrap;">R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}</div>
-      </div>
-    `).join('');
-
-    const cupom = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Pedido #${pedido.numero}</title>
-        <style>
-          * { font-family: 'Courier New', monospace; font-size: 12px; }
-          body { width: 76mm; margin: 0; padding: 4mm; }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .linha { border-top: 2px dashed #000; margin: 8px 0; }
-          .total { font-size: 14px; font-weight: bold; border-top: 2px solid #000; padding-top: 8px; margin-top: 8px; }
-          @media print { @page { margin: 0; size: 80mm auto; } }
-        </style>
-      </head>
-      <body>
-        <div class="center bold" style="font-size:14px;">SABOR DE ABRAÇO</div>
-        <div class="center" style="font-size:10px; color:#c2410c; font-weight:bold;">
-          ${pedido.status === 'pendente' ? 'PEDIDO PENDENTE' : 'PAGAMENTO PARCIAL'}
-        </div>
-        <div class="linha"></div>
-        <div><span class="bold">Pedido:</span> #${pedido.numero}</div>
-        <div><span class="bold">Data:</span> ${data}</div>
-        <div><span class="bold">Cliente:</span> ${pedido.clienteNome}</div>
-        <div class="linha"></div>
-        <div class="bold center">=== ITENS ===</div>
-        ${itensHtml}
-        <div class="linha"></div>
-        <div style="display:flex; justify-content:space-between;">
-          <span>Subtotal:</span><span>R$ ${parseFloat(pedido.subtotal || pedido.total).toFixed(2).replace('.',',')}</span>
-        </div>
-        ${pedido.desconto > 0 ? `
-        <div style="display:flex; justify-content:space-between; color:#16a34a;">
-          <span>Desconto:</span><span>-R$ ${parseFloat(pedido.desconto).toFixed(2).replace('.',',')}</span>
-        </div>
-        ` : ''}
-        <div class="total" style="display:flex; justify-content:space-between;">
-          <span>TOTAL:</span><span>R$ ${parseFloat(pedido.total).toFixed(2).replace('.',',')}</span>
-        </div>
-        ${totalPago > 0 ? `
-        <div style="display:flex; justify-content:space-between; margin-top:8px; color:#16a34a;">
-          <span>Já Pago:</span><span>R$ ${totalPago.toFixed(2).replace('.',',')}</span>
-        </div>
-        <div style="display:flex; justify-content:space-between; font-weight:bold; color:#dc2626;">
-          <span>FALTA:</span><span>R$ ${falta.toFixed(2).replace('.',',')}</span>
-        </div>
-        ` : `
-        <div style="display:flex; justify-content:space-between; font-weight:bold; color:#c2410c; margin-top:8px;">
-          <span>TOTAL A PAGAR:</span><span>R$ ${parseFloat(pedido.total).toFixed(2).replace('.',',')}</span>
-        </div>
-        `}
-        <div class="linha"></div>
-        <div class="center" style="font-size:10px;">Obrigado pela preferência!</div>
-        <script>window.onload=()=>{print();close()}</script>
-      </body>
-      </html>
-    `;
-    const janela = window.open('', '_blank', 'width=350,height=600');
-    janela.document.write(cupom);
-    janela.document.close();
   };
 
 
   const enviarWhatsApp = (pedido) => {
     return compartilharNotaWhatsApp(pedido, { titulo: pedido.status === 'pago' ? 'NOTA DE VENDA' : 'PEDIDO PENDENTE' });
-    const totalPago = Array.isArray(pedido.pagamentos)
-      ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
-      : 0;
-    const falta = Math.max(0, parseFloat(pedido.total) - totalPago);
-    const data = new Date(pedido.createdAt).toLocaleString('pt-BR');
-
-    const itensTexto = pedido.itens.map(item => 
-      `• ${item.nome}\n  ${item.quantidade} x R$ ${item.precoUnitario.toFixed(2).replace('.',',')} = R$ ${(item.quantidade * item.precoUnitario).toFixed(2).replace('.',',')}`
-    ).join('\n');
-
-    const statusTexto = pedido.status === 'pago' 
-      ? '✅ *QUITADO*' 
-      : pedido.status === 'parcial' 
-        ? '💰 *PAGAMENTO PARCIAL*' 
-        : '⏳ *PENDENTE*';
-
-    const texto = encodeURIComponent(
-`${pedido.status === 'pago' ? '✅' : pedido.status === 'parcial' ? '💰' : '⏳'} *PEDIDO #${pedido.numero}*
-${statusTexto}
-📅 ${data}
-👤 Cliente: ${pedido.clienteNome}
-
-━━━━━━━━━━━━━━━━
-📦 *ITENS:*
-${itensTexto}
-━━━━━━━━━━━━━━━━
-
-💰 Valor Total: R$ ${parseFloat(pedido.total).toFixed(2).replace('.',',')}
-${totalPago > 0 ? `💵 Já Pago: R$ ${totalPago.toFixed(2).replace('.',',')}\n` : ''}
-${falta > 0 ? `🔴 *FALTA: R$ ${falta.toFixed(2).replace('.',',')}*\n` : ''}
-Obrigado! 🙏`
-    );
-
-    const telefone = pedido.clienteTelefone ? pedido.clienteTelefone.replace(/\D/g, '') : '';
-    const url = telefone 
-      ? `https://wa.me/55${telefone}?text=${texto}`
-      : `https://wa.me/?text=${texto}`;
-    
-    window.open(url, '_blank');
   };
 
 
@@ -534,29 +442,27 @@ Obrigado! 🙏`
 
     const totaisRel = {
       bruto: pedidos.reduce((s, p) => s + (parseFloat(p.total) || 0), 0),
-      pago: pedidos.reduce((s, p) => s + (Array.isArray(p.pagamentos) ? p.pagamentos.reduce((a, pg) => a + (parseFloat(pg.valorRecebido) || 0), 0) : 0), 0),
+      pago: pedidos.reduce((s, p) => s + somarPagamentos(p.pagamentos), 0),
       aberto: pedidos.reduce((s, p) => {
         const st = String(p.status || '').toLowerCase();
         if (st === 'pago' || st === 'cancelado') return s;
-        const tp = Array.isArray(p.pagamentos) ? p.pagamentos.reduce((a, pg) => a + (parseFloat(pg.valorRecebido) || 0), 0) : 0;
+        const tp = somarPagamentos(p.pagamentos);
         return s + Math.max(0, parseFloat(p.total) - tp);
       }, 0)
     };
 
     const pedidosHtml = pedidos.map(p => {
-      const totalPago = Array.isArray(p.pagamentos)
-        ? p.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
-        : 0;
+      const totalPago = somarPagamentos(p.pagamentos);
       const falta = Math.max(0, parseFloat(p.total) - totalPago);
-      
+
       return `
         <div style="border-bottom: 1px dashed #000; padding: 6px 0;">
           <div style="display:flex; justify-content:space-between; font-weight:bold;">
-            <span>#${p.numero} - ${p.clienteNome}</span>
+            <span>#${textoSeguro(p.numero)} - ${textoSeguro(p.clienteNome)}</span>
             <span>R$ ${parseFloat(p.total).toFixed(2).replace('.',',')}</span>
           </div>
           <div style="font-size:10px;">
-            Status: ${statusCor[p.status]?.label || p.status} | 
+            Status: ${textoSeguro(statusCor[p.status]?.label || p.status)} |
             ${falta > 0 ? `Falta: R$ ${falta.toFixed(2).replace('.',',')}` : 'Quitado'}
           </div>
         </div>
@@ -567,7 +473,7 @@ Obrigado! 🙏`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Relatório Completo - ${clienteNome}</title>
+        <title>Relatório Completo - ${textoSeguro(clienteNome)}</title>
         <style>
           * { font-family: 'Courier New', monospace; font-size: 12px; }
           body { width: 76mm; margin: 0; padding: 4mm; }
@@ -582,7 +488,7 @@ Obrigado! 🙏`
         <div class="center bold" style="font-size:14px;">RELATÓRIO DO CLIENTE</div>
         <div class="linha"></div>
         <div><span class="bold">Data:</span> ${data}</div>
-        <div><span class="bold">Cliente:</span> ${clienteNome}</div>
+        <div><span class="bold">Cliente:</span> ${textoSeguro(clienteNome)}</div>
         <div><span class="bold">Qtde Pedidos:</span> ${pedidos.length}</div>
         <div class="linha"></div>
         ${pedidosHtml}
@@ -612,11 +518,19 @@ Obrigado! 🙏`
   return (
     <div>
       <div className="page-heading">
-        <div>
           <h1>📊 Contas a Receber</h1>
           <p>Acerto de pendências por cliente</p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            {[['pedidos', '📄 Pedidos'], ['comandas', '🧾 Comandas em aberto']].map(([chave, label]) => (
+              <button key={chave} type="button" onClick={() => setAba(chave)} style={{
+                padding: '8px 14px', borderRadius: 999, cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                border: aba === chave ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                background: aba === chave ? 'var(--accent-light)' : 'var(--bg-tertiary)',
+                color: aba === chave ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              }}>{label}</button>
+            ))}
+          </div>
         </div>
-      </div>
 
       {/* FILTROS */}
       <div style={{
@@ -638,7 +552,7 @@ Obrigado! 🙏`
           <select value={statusFiltro} onChange={e => setStatusFiltro(e.target.value)} style={{
             width: '100%', padding: '10px', border: '1px solid var(--border-color)', borderRadius: 10
           }}>
-            <option value="">Todos</option>
+            <option value="abertas">Todos em A Receber</option>
             <option value="pendente">Pendentes</option>
             <option value="parcial">Pagamento Parcial</option>
             <option value="pago">Quitados</option>
@@ -667,20 +581,20 @@ Obrigado! 🙏`
           <div>
             <div style={{ fontSize: 13, opacity: 0.9 }}>Total a Receber</div>
             <div style={{ fontSize: 28, fontWeight: 700 }}>
-              {carregando ? '⏳ Carregando...' : `R$ ${Number(totais?.totalEmAberto ?? 0).toFixed(2).replace('.', ',')}`}
+              {carregando ? '⏳ Carregando...' : `R$ ${Number(totaisExibidos?.emAberto ?? 0).toFixed(2).replace('.', ',')}`}
             </div>
             <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
-              {carregando ? 'Aguardando dados...' : `Bruto: R$ ${Number(totais?.totalBruto ?? 0).toFixed(2).replace('.', ',')} | Pago: R$ ${Number(totais?.totalPagoGeral ?? 0).toFixed(2).replace('.', ',')}`}
+              {carregando ? 'Aguardando dados...' : `Bruto: R$ ${Number(totaisExibidos?.bruto ?? 0).toFixed(2).replace('.', ',')} | Pago: R$ ${Number(totaisExibidos?.pago ?? 0).toFixed(2).replace('.', ',')}`}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {/* ✅ Selecionar Todos */}
-            {pedidos.length > 0 && (
-              <button 
+            {aba === 'pedidos' && pedidos.length > 0 && (
+              <button
                 onClick={toggleSelecionarTodos}
                 style={{
-                  padding: '6px 12px', 
-                  background: selecionados.size === pedidos.length && pedidos.length > 0 ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.2)', 
+                  padding: '6px 12px',
+                  background: selecionados.size === pedidos.length && pedidos.length > 0 ? 'rgba(255,255,255,.4)' : 'rgba(255,255,255,.2)',
                   color: '#fff', border: '1px solid rgba(255,255,255,.3)', borderRadius: 8,
                   fontSize: 12, fontWeight: 600, cursor: 'pointer'
                 }}
@@ -689,18 +603,20 @@ Obrigado! 🙏`
               </button>
             )}
             <div style={{ display: 'flex', gap: 6 }}>
-              <button onClick={abrirReceberMarcados} style={{
-                  padding: '6px 12px', background: 'var(--brand-cream)', color: 'var(--brand-brown)',
-                border: 'none', borderRadius: 8,
-                fontSize: 12, fontWeight: 700, cursor: 'pointer'
-              }}>💰 Receber Marcados ({selecionados.size})</button>
+              {aba === 'pedidos' && (
+                <button onClick={abrirReceberMarcados} style={{
+                    padding: '6px 12px', background: 'var(--brand-cream)', color: 'var(--brand-brown)',
+                  border: 'none', borderRadius: 8,
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer'
+                }}>💰 Receber Marcados ({selecionados.size})</button>
+              )}
               {clienteFiltro && (
                 <button onClick={quitarTotalCliente} style={{
                   padding: '6px 12px', background: 'var(--success-bg)', color: '#fff',
                   border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer'
                 }}>✅ Quitar Total do Cliente</button>
               )}
-              
+
               {clienteFiltro && (
                 <button onClick={gerarRelatorioCompleto} style={{
                   padding: '6px 12px', background: 'var(--success-bg)', color: '#fff',
@@ -710,7 +626,7 @@ Obrigado! 🙏`
               )}
             </div>
             {/* ✅ Mostra valor dos marcados */}
-            {selecionados.size > 0 && (
+            {aba === 'pedidos' && selecionados.size > 0 && (
               <div style={{ fontSize: 11, opacity: 0.9, marginTop: 2 }}>
                 Valor selecionado: <strong>R$ {valorTotalSelecionados.toFixed(2).replace('.',',')}</strong>
               </div>
@@ -719,8 +635,70 @@ Obrigado! 🙏`
         </div>
       </div>
 
+      {/* LISTA DE COMANDAS EM ABERTO */}
+      {aba === 'comandas' && (
+        comandasAbertas.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 12 }}>
+            Nenhuma comanda com saldo em aberto
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 12 }}>
+            {comandasAbertas.map((comanda) => {
+              const info = statusPagamentoInfo(comanda.statusPagamento);
+              const valorTotal = Number(comanda.valorTotal || 0);
+              const recebido = somarPagamentos(comanda.historicoPagamentos);
+              const saldo = saldoDevedor(valorTotal, comanda.historicoPagamentos);
+              const pagamentos = normalizarPagamentos(comanda.historicoPagamentos);
+              return (
+                <div key={comanda._id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 14, padding: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <strong>
+                        {comanda.tipoAtendimento === 'balcao' ? '📦' : '🪑'} Comanda #{comanda.numero}
+                      </strong>
+                      <span style={{ marginLeft: 8, ...(() => ({ background: info.bg, color: info.txt }))(), padding: '1px 8px', borderRadius: 999, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>{info.label}</span>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                        {comanda.clienteNome || 'Consumidor'} · {dataBR(comanda.dataAbertura)} · {comanda.itens?.length || 0} itens
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--accent-primary)' }}>
+                        R$ {saldo.toFixed(2).replace('.', ',')}
+                      </div>
+                      <small style={{ color: 'var(--text-secondary)' }}>Total R$ {valorTotal.toFixed(2).replace('.', ',')}</small>
+                    </div>
+                  </div>
+
+                  {recebido > 0 && (
+                    <details style={{ marginTop: 10 }}>
+                      <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                        Já recebido R$ {recebido.toFixed(2).replace('.', ',')} ({pagamentos.length}x)
+                      </summary>
+                      <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
+                        {pagamentos.map((pagamento, indice) => (
+                          <small key={indice} style={{ color: 'var(--text-secondary)' }}>
+                            {dataBR(pagamento.data)} · {rotuloPagamento(pagamento.tipo)} · <strong>R$ {Number(pagamento.valor || 0).toFixed(2).replace('.', ',')}</strong>
+                            {pagamento.observacao ? ` · ${pagamento.observacao}` : ''}
+                          </small>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
+                  <button onClick={() => abrirReceberComanda(comanda)} style={{
+                    marginTop: 12, padding: '8px 14px', border: 'none', borderRadius: 8,
+                    background: 'var(--brand-cream)', color: 'var(--brand-brown)',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer'
+                  }}>💰 Receber</button>
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
       {/* LISTA DE PEDIDOS */}
-      {pedidos.length === 0 ? (
+      {aba === 'pedidos' && (pedidos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 12 }}>
           {carregando ? 'Carregando pedidos...' : 'Nenhum pedido encontrado'}
         </div>
@@ -728,23 +706,21 @@ Obrigado! 🙏`
         <div style={{ display: 'grid', gap: 12 }}>
           {pedidos.map(pedido => {
             const st = statusCor[pedido.status];
-            const totalPago = Array.isArray(pedido.pagamentos)
-              ? pedido.pagamentos.reduce((ac, pg) => ac + (parseFloat(pg.valorRecebido) || 0), 0)
-              : 0;
+            const totalPago = somarPagamentos(pedido.pagamentos);
             const falta = Math.max(0, parseFloat(pedido.total) - totalPago);
             const estaSelecionado = selecionados.has(pedido._id);
 
             return (
               <div key={pedido._id} style={{
-                background: estaSelecionado ? 'rgba(22,163,74,.12)' : 'var(--bg-secondary)', 
-                border: estaSelecionado ? '2px solid var(--success-bg)' : '1px solid var(--border-color)', 
+                background: estaSelecionado ? 'rgba(22,163,74,.12)' : 'var(--bg-secondary)',
+                border: estaSelecionado ? '2px solid var(--success-bg)' : '1px solid var(--border-color)',
                 borderRadius: 14, padding: 16,
                 transition: 'all 0.15s'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 220px' }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={estaSelecionado}
                       onChange={() => toggleSelecionar(pedido._id)}
                       style={{ width: 18, height: 18, cursor: 'pointer' }}
@@ -757,8 +733,8 @@ Obrigado! 🙏`
                     </div>
                   </div>
                   <span style={{
-                    background: st?.bg || 'var(--bg-tertiary)', 
-                    color: st?.txt || 'var(--text-secondary)', 
+                    background: st?.bg || 'var(--bg-tertiary)',
+                    color: st?.txt || 'var(--text-secondary)',
                     padding: '4px 10px',
                     borderRadius: 20, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap'
                   }}>{st?.label || pedido.status}</span>
@@ -791,7 +767,7 @@ Obrigado! 🙏`
                     {pedido.pagamentos.map((pg, i) => (
                       <div key={i} style={{ fontSize: 12, padding: '4px 0', borderTop: '1px solid var(--border-light)' }}>
                         {pg.dataPagamento ? new Date(pg.dataPagamento).toLocaleDateString('pt-BR') : '-'}
-                        {' • '}{formaPagamentoLabel[pg.tipo] || pg.tipo}
+                        {' • '}{rotuloPagamento(pg.tipo)}
                         {' • '}<strong>R$ {parseFloat(pg.valorRecebido).toFixed(2).replace('.',',')}</strong>
                         {pg.quitado && ' ✅'}
                       </div>
@@ -806,14 +782,14 @@ Obrigado! 🙏`
                   gap: 10,
                   alignItems: 'stretch'
                 }}>
-                  <button 
-                    onClick={() => pedido.status === 'pago' ? imprimirComprovante(pedido) : imprimirPedido(pedido)} 
+                  <button
+                    onClick={() => pedido.status === 'pago' ? imprimirComprovante(pedido) : imprimirPedido(pedido)}
                     style={{
                       flex: '1 1 160px',
-                      padding: '10px 8px', 
-                      background: 'var(--brand-brown)', 
+                      padding: '10px 8px',
+                      background: 'var(--brand-brown)',
                       color: '#fff',
-                      border: 'none', borderRadius: 8, 
+                      border: 'none', borderRadius: 8,
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                       whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
@@ -821,18 +797,18 @@ Obrigado! 🙏`
                   >
                     🖨️ {pedido.status === 'pago' ? 'Comprovante' : 'Imprimir'}
                   </button>
-                  
-                  <button 
-                    onClick={() => enviarWhatsApp(pedido)} 
+
+                  <button
+                    onClick={() => enviarWhatsApp(pedido)}
                     style={{
                       flex: '1 1 160px',
-                      padding: '10px 8px', 
-                      background: 'var(--success-bg)', 
+                      padding: '10px 8px',
+                      background: 'var(--success-bg)',
                       color: '#fff',
-                      border: 'none', borderRadius: 8, 
+                      border: 'none', borderRadius: 8,
                       fontSize: 13, fontWeight: 600, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                      whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box' 
+                      whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
                     }}
                   >
                     💬 WhatsApp
@@ -841,7 +817,7 @@ Obrigado! 🙏`
                   {pedido.status !== 'pago' && pedido.status !== 'cancelado' && (
                     <>
                       <button
-                        onClick={() => (pedido.comandaId ? abrirNovoPedido(pedido) : abrirAlterarComanda(pedido))}
+                        onClick={() => abrirNovoPedido(pedido)}
                         style={{
                           flex: '1 1 180px',
                           padding: '10px 8px', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 8,
@@ -850,22 +826,13 @@ Obrigado! 🙏`
                         }}
                       >{pedido.comandaId ? '➕ Novo pedido' : '🔗 Vincular comanda'}</button>
                       <button
-                        onClick={() => abrirAlterarComanda(pedido)}
-                        style={{
-                          flex: '1 1 180px',
-                          padding: '10px 8px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: 8,
-                          fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                          whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
-                        }}
-                      >✏️ Alterar comanda</button>
-                      <button 
                         onClick={() => abrirModalReceber(pedido)}
                         style={{
                           flex: '1 1 160px',
-                          padding: '10px 8px', 
+                          padding: '10px 8px',
                           background: 'var(--success-bg)',
                           color: '#fff',
-                          border: 'none', borderRadius: 8, 
+                          border: 'none', borderRadius: 8,
                           fontSize: 13, fontWeight: 600, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                           whiteSpace: 'nowrap', minHeight: 42, boxSizing: 'border-box'
@@ -881,11 +848,58 @@ Obrigado! 🙏`
             );
           })}
         </div>
+      ))}
+
+      {/* MODAL DE RECEBIMENTO DE COMANDA */}
+      {formComanda && (
+        <div onClick={() => { if (!recebendoRef.current) setFormComanda(null); }} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 10000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <form onSubmit={registrarRecebimentoComanda} onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg-primary)', borderRadius: 16, padding: 20, width: '100%',
+            maxWidth: 440, boxShadow: 'var(--shadow-lg)'
+          }}>
+            <h3 style={{ margin: 0 }}>💰 Receber comanda #{formComanda.comanda.numero}</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '6px 0 14px' }}>
+              Total R$ {Number(formComanda.comanda.valorTotal || 0).toFixed(2).replace('.', ',')} · já recebido R$ {somarPagamentos(formComanda.comanda.historicoPagamentos).toFixed(2).replace('.', ',')} · saldo R$ {saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos).toFixed(2).replace('.', ',')}
+            </p>
+
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Forma de pagamento</label>
+            <select disabled={recebendo} value={formComanda.formaPagamento} onChange={e => setFormComanda(f => ({ ...f, formaPagamento: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 12, boxSizing: 'border-box' }}>
+              {FORMAS_PAGAMENTO.filter((forma) => forma.value !== 'credito_loja').map((forma) => <option key={forma.value} value={forma.value}>{forma.label}</option>)}
+            </select>
+            <small style={{ display: 'block', margin: '-8px 0 12px', color: 'var(--text-secondary)' }}>Crédito na loja não entra como recebimento: aqui só entra dinheiro de verdade.</small>
+
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Valor recebido (R$)</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input disabled={recebendo}
+                type="text" inputMode="decimal" autoComplete="off"
+                placeholder="0,00"
+                value={formComanda.valor}
+                onChange={e => digitarValorComanda(e.target.value)}
+                style={{ flex: 1, padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}
+              />
+              <button type="button" onClick={() => digitarValorComanda(saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos).toFixed(2))} style={{ padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: 10, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Saldo total</button>
+            </div>
+            <small style={{ display: 'block', margin: '6px 0 12px', color: 'var(--text-secondary)' }}>
+              Máximo: R$ {saldoDevedor(formComanda.comanda.valorTotal, formComanda.comanda.historicoPagamentos).toFixed(2).replace('.', ',')}. Deixe abaixo do saldo para um pagamento parcial.
+            </small>
+
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Observação</label>
+            <input disabled={recebendo} value={formComanda.observacao} onChange={e => setFormComanda(f => ({ ...f, observacao: e.target.value }))} style={{ width: '100%', padding: 10, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 16, boxSizing: 'border-box' }} />
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => { if (!recebendoRef.current) setFormComanda(null); }} style={{ padding: '9px 16px', border: '1px solid var(--border-color)', borderRadius: 8, background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancelar</button>
+              <button type="submit" disabled={recebendo} style={{ padding: '9px 16px', border: 'none', borderRadius: 8, background: 'var(--success-bg)', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Confirmar recebimento</button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* ✅ MODAL DE RECEBIMENTO MÚLTIPLO (para marcados) */}
       {pagamentoMultiploModal && (
-        <div onClick={() => setPagamentoMultiploModal(null)} style={{
+        <div onClick={() => { if (!recebendoRef.current) setPagamentoMultiploModal(null); }} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
         }}>
@@ -900,30 +914,29 @@ Obrigado! 🙏`
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <select value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
+              <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
                 <option value="pix">🔄 PIX</option>
-                <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
               </select>
             </div>
 
+
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Observação</label>
-              <input type="text" placeholder="Ex: Pagamento em lote"
+              <input disabled={recebendo} type="text" placeholder="Ex: Pagamento em lote"
                 value={formPagamentoMultiplo.observacao}
                 onChange={e => setFormPagamentoMultiplo({...formPagamentoMultiplo, observacao: e.target.value})}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10 }} />
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setPagamentoMultiploModal(null)} style={{
+              <button onClick={() => { if (!recebendoRef.current) setPagamentoMultiploModal(null); }} style={{
                 flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer'
               }}>Cancelar</button>
-              <button onClick={registrarPagamentoMultiplo} style={{
+              <button disabled={recebendo} onClick={registrarPagamentoMultiplo} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
               }}>✅ Receber Tudo</button>
             </div>
@@ -933,7 +946,7 @@ Obrigado! 🙏`
 
       {/* ✅ MODAL DE RECEBIMENTO INDIVIDUAL */}
       {pagamentoModal && (
-        <div onClick={() => setPagamentoModal(null)} style={{
+        <div onClick={() => { if (!recebendoRef.current) setPagamentoModal(null); }} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
         }}>
@@ -947,60 +960,39 @@ Obrigado! 🙏`
 
             <div style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Forma de Pagamento</label>
-              <select value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
+              <select disabled={recebendo} value={formPagamento.tipo} onChange={e => setFormPagamento({...formPagamento, tipo: e.target.value})} style={{
                 width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10
               }}>
                 <option value="dinheiro">💵 Dinheiro</option>
                 <option value="pix">🔄 PIX</option>
-                <option value="credito_loja">🏪 Crédito Loja</option>
                 <option value="cartao_credito">💳 Cartão de Crédito</option>
                 <option value="cartao_debito">💳 Cartão de Débito</option>
               </select>
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor total para quitar (R$)</label>
-              <input type="text" readOnly autoFocus
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Valor a pagar (R$)</label>
+              <input disabled={recebendo} type="number" min="0.01" max={saldoPagamentoIndividual} step="0.01" autoFocus
                 value={formPagamento.valorRecebido}
+                onChange={event => setFormPagamento({ ...formPagamento, valorRecebido: event.target.value })}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, fontSize: 16, background: 'var(--bg-tertiary)', fontWeight: 700 }} />
+              <small style={{ display: 'block', marginTop: 5, color: 'var(--text-secondary)' }}>Saldo pendente: R$ {saldoPagamentoIndividual.toFixed(2)}</small>
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Observação</label>
-              <input type="text" placeholder="Ex: Pagamento parcial"
+              <input disabled={recebendo} type="text" placeholder="Ex: Pagamento parcial"
                 value={formPagamento.observacao}
                 onChange={e => setFormPagamento({...formPagamento, observacao: e.target.value})}
                 style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10 }} />
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setPagamentoModal(null)} style={{
+              <button onClick={() => { if (!recebendoRef.current) setPagamentoModal(null); }} style={{
                 flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer'
               }}>Cancelar</button>
-              <button onClick={registrarPagamento} style={{
+              <button disabled={recebendo} onClick={registrarPagamento} style={{
                 flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer'
-              }}>Quitar Total</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {alterarComandaModal && (
-        <div onClick={() => setAlterarComandaModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
-          <div onClick={event => event.stopPropagation()} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420 }}>
-            <h3 style={{ margin: '0 0 6px' }}>✏️ Alterar comanda</h3>
-            <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{alterarComandaModal.numero} · {alterarComandaModal.clienteNome}</p>
-            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Comanda aberta
-              <select value={novaComandaId} onChange={event => setNovaComandaId(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }}>
-                <option value="">Selecione uma comanda</option>
-                {comandasAbertas.map((comanda) => (
-                  <option key={comanda._id} value={comanda._id}>#{comanda.numero} · {comanda.clienteNome}</option>
-                ))}
-              </select>
-            </label>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setAlterarComandaModal(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarAlterarComanda} disabled={!novaComandaId} style={{ flex: 1, padding: 12, background: novaComandaId ? 'var(--success-bg)' : 'var(--bg-tertiary)', color: novaComandaId ? '#fff' : 'var(--text-secondary)', border: 'none', borderRadius: 10, fontWeight: 700, cursor: novaComandaId ? 'pointer' : 'not-allowed' }}>Salvar</button>
+              }}>Pagar</button>
             </div>
           </div>
         </div>
@@ -1012,12 +1004,12 @@ Obrigado! 🙏`
             <h3 style={{ margin: '0 0 6px' }}>➕ Novo pedido na conta</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)', fontSize: 13 }}>Pedido #{novoPedidoModal.numero} · {novoPedidoModal.clienteNome}</p>
             <div className="novo-pedido-item-form">
-              <label className="novo-pedido-field">Produto<select value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
-              <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input type="number" min="0.001" step="0.001" value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
+              <label className="novo-pedido-field">Produto<select disabled={recebendo} value={novoPedidoForm.produtoId} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, produtoId: event.target.value, quantidade: '1' })}><option value="">Selecione um produto</option>{produtos.map(produto => <option key={produto._id} value={produto._id}>{produto.nome}</option>)}</select></label>
+              <label className="novo-pedido-field novo-pedido-quantity">Quantidade<input disabled={recebendo} type="number" min={passoQuantidadeNovoPedido} step={passoQuantidadeNovoPedido} value={novoPedidoForm.quantidade} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, quantidade: event.target.value })} /></label>
               <button type="button" className="novo-pedido-add" onClick={adicionarItemNovoPedido}>Adicionar produto</button>
             </div>
             {novoPedidoForm.itens.length > 0 && <div className="novo-pedido-items">{novoPedidoForm.itens.map((item, index) => <div className="novo-pedido-item" key={`${item.produtoId}-${index}`}><span><strong>{item.quantidade}x</strong> {item.nome}</span><button type="button" onClick={() => setNovoPedidoForm({ ...novoPedidoForm, itens: novoPedidoForm.itens.filter((_, itemIndex) => itemIndex !== index) })}>Remover</button></div>)}</div>}
-            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
+            <label style={{ display: 'block', marginBottom: 12, fontSize: 12, fontWeight: 700 }}>Nome de quem está fazendo o novo pedido<input disabled={recebendo} value={novoPedidoForm.nomeSolicitante} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, nomeSolicitante: event.target.value })} placeholder="Ex.: Maria" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10 }} /></label>
             <label style={{ display: 'block', marginBottom: 16, fontSize: 12, fontWeight: 700 }}>Observação do novo pedido<textarea value={novoPedidoForm.observacao} onChange={event => setNovoPedidoForm({ ...novoPedidoForm, observacao: event.target.value })} placeholder="Ex.: café e salgado para Maria" rows="3" style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: 10, marginTop: 4, border: '1px solid var(--border-color)', borderRadius: 10, resize: 'vertical' }} /></label>
             <div style={{ display: 'flex', gap: 10 }}><button onClick={() => setNovoPedidoModal(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button><button onClick={adicionarItensAoPedido} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 0, borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Confirmar novo pedido</button></div>
           </div>
@@ -1026,28 +1018,27 @@ Obrigado! 🙏`
 
       <PagamentoResultadoModal
         pedido={pagamentoConcluido}
-        titulo="Pagamento concluído"
+        titulo={pagamentoConcluido?.status === 'parcial' ? 'Pagamento parcial registrado' : 'Pagamento concluído'}
         onPrint={() => pagamentoConcluido?.status === 'pago' ? imprimirComprovante(pagamentoConcluido) : imprimirPedido(pagamentoConcluido)}
         onWhatsApp={() => enviarWhatsApp(pagamentoConcluido)}
         onClose={() => setPagamentoConcluido(null)}
       />
 
       {quitarClienteModal && (
-        <div onClick={() => setQuitarClienteModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
+        <div onClick={() => { if (!recebendoRef.current) setQuitarClienteModal(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20 }}>
           <div onClick={event => event.stopPropagation()} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: 16, padding: 24, width: '100%', maxWidth: 380 }}>
             <h3 style={{ margin: '0 0 8px' }}>✅ Quitar total do cliente</h3>
             <p style={{ margin: '0 0 16px', color: 'var(--text-secondary)' }}>Todas as pendências do cliente selecionado serão quitadas.</p>
             <label style={{ display: 'block', marginBottom: 5, fontSize: 13, fontWeight: 700 }}>Forma de pagamento</label>
-            <select value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
+            <select disabled={recebendo} value={formPagamentoMultiplo.tipo} onChange={event => setFormPagamentoMultiplo({ ...formPagamentoMultiplo, tipo: event.target.value })} style={{ width: '100%', padding: 10, border: '1px solid var(--border-color)', borderRadius: 10, marginBottom: 16 }}>
               <option value="dinheiro">💵 Dinheiro</option>
               <option value="pix">🔄 PIX</option>
-              <option value="credito_loja">🏪 Crédito Loja</option>
               <option value="cartao_credito">💳 Cartão de Crédito</option>
               <option value="cartao_debito">💳 Cartão de Débito</option>
             </select>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setQuitarClienteModal(false)} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={confirmarQuitacaoCliente} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Quitar tudo</button>
+              <button onClick={() => { if (!recebendoRef.current) setQuitarClienteModal(false); }} style={{ flex: 1, padding: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 10, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+              <button disabled={recebendo} onClick={confirmarQuitacaoCliente} style={{ flex: 1, padding: 12, background: 'var(--success-bg)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>Quitar tudo</button>
             </div>
           </div>
         </div>

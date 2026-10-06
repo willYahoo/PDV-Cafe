@@ -4,7 +4,7 @@ const auth = require('../middleware/auth');
 const Recipe = require('../models/Recipe');
 const Product = require('../models/Product');
 const HistoricoCusto = require('../models/HistoricoCusto');
-const { calcularCustoReceita, calcularMargem } = require('../utils/custo');
+const { calcularCustoReceitaDireta, calcularMargem } = require('../utils/custo');
 
 const router = express.Router();
 
@@ -19,6 +19,19 @@ const precosSugeridos = (custoUnitario) => ({
 
 router.use(auth);
 router.use(auth.allowRoles('admin'));
+
+router.get('/:id', async (req, res) => {
+  try {
+    const recipe = await Recipe.findById(req.params.id)
+      .populate('ingredientes.produtoId', 'nome codigo unidadeConteudo conteudoPorEmbalagem custoUnitarioBase')
+      .populate('produtoId', 'nome codigo preco');
+    if (!recipe) return res.status(404).json({ msg: 'Receita não encontrada' });
+    res.json(recipe);
+  } catch (error) {
+    if (error.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
+    res.status(500).json({ msg: error.message });
+  }
+});
 
 router.post('/:id/calcular-custo', [
   body('custoEmbalagem').optional().isFloat({ min: 0 }),
@@ -39,7 +52,7 @@ router.post('/:id/calcular-custo', [
       custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
     }));
 
-    const resultado = calcularCustoReceita(ingredientes, custoEmbalagem, custoIndireto, maoDeObra, Number(recipe.rendimento || 1));
+    const resultado = calcularCustoReceitaDireta(ingredientes, custoEmbalagem, custoIndireto, maoDeObra, Number(recipe.rendimento || 1));
     recipe.custoInsumosTotal = resultado.custoInsumosTotal;
     recipe.custoEmbalagem = custoEmbalagem;
     recipe.custoIndireto = custoIndireto;

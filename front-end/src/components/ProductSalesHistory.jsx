@@ -31,8 +31,6 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
   useEffect(() => {
     if (!open) return undefined;
     let active = true;
-    setLoading(true);
-    setError('');
     api.get('/dashboard/historico-produtos', { params: { semanaInicio: weekStart, ...(productId ? { produtoId: productId } : {}) } })
       .then((response) => { if (active) setHistory(response.data); })
       .catch((requestError) => { if (active) setError(requestError.response?.data?.msg || 'Não foi possível carregar o histórico de vendas.'); })
@@ -41,7 +39,7 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
   }, [open, weekStart, productId]);
 
   const salesRank = new Map(topProducts.map((product, index) => [product.nome, index]));
-  const sortedProducts = [...products].sort((first, second) => {
+  const sortedProducts = [...products].filter((product) => !product.tipo || product.tipo !== 'insumo').sort((first, second) => {
     const firstRank = salesRank.has(first.nome) ? salesRank.get(first.nome) : Number.MAX_SAFE_INTEGER;
     const secondRank = salesRank.has(second.nome) ? salesRank.get(second.nome) : Number.MAX_SAFE_INTEGER;
     return firstRank - secondRank || first.nome.localeCompare(second.nome, 'pt-BR');
@@ -58,11 +56,11 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
         <h2>Vendas por produto — semana completa</h2>
         <p>{open ? `Gráfico de quantidades de ${weekRange(weekStart)}.` : 'Abra para consultar as quantidades vendidas por produto.'}</p>
       </div>
-      <button type="button" className="product-history-toggle" onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? 'Ocultar' : 'Consultar'}</button>
+      <button type="button" className="product-history-toggle" onClick={() => { setLoading(true); setError(''); setOpen((value) => !value); }} aria-expanded={open}>{open ? 'Ocultar' : 'Consultar'}</button>
     </div>
     {open && <><div className="product-history-filters">
       <label>Produto
-        <select value={productId} onChange={(event) => setProductId(event.target.value)}>
+        <select value={productId} onChange={(event) => { setLoading(true); setError(''); setProductId(event.target.value); }}>
           <option value="">Todos os produtos</option>
           {sortedProducts.map((product) => <option key={product._id} value={product._id}>{salesRank.has(product.nome) ? `★ ${product.nome}` : product.nome}</option>)}
         </select>
@@ -70,23 +68,23 @@ export default function ProductSalesHistory({ products, topProducts = [] }) {
       <div className="product-history-period-control">
         <span>Semana completa</span>
         <div className="product-history-week-navigation">
-          <button type="button" onClick={() => setWeekStart((value) => shiftWeek(value, -1))} aria-label="Semana anterior">&lt;</button>
+          <button type="button" onClick={() => { setLoading(true); setError(''); setWeekStart((value) => shiftWeek(value, -1)); }} aria-label="Semana anterior">&lt;</button>
           <small>{weekRange(weekStart)}</small>
-          <button type="button" onClick={() => setWeekStart((value) => shiftWeek(value, 1))} aria-label="Próxima semana">&gt;</button>
+          <button type="button" onClick={() => { setLoading(true); setError(''); setWeekStart((value) => shiftWeek(value, 1)); }} aria-label="Próxima semana">&gt;</button>
         </div>
       </div>
     </div>
     {loading ? <p className="product-history-message">Carregando histórico...</p> : error ? <p className="product-history-message">{error}</p> : <>
       <div className="product-history-summary">
-        <div><small>Itens vendidos</small><b>{quantity(summary.quantidade)}</b></div>
+        <div><small>Quantidade vendida (unidade base)</small><b>{quantity(summary.quantidade)}</b></div>
         <div><small>Pedidos com o produto</small><b>{summary.pedidos}</b></div>
-        <div><small>Média por pedido</small><b>{quantity(summary.pedidos ? summary.quantidade / summary.pedidos : 0)}</b></div>
+        <div><small>Média por pedido (unidade base)</small><b>{quantity(summary.pedidos ? summary.quantidade / summary.pedidos : 0)}</b></div>
       </div>
       <div className="product-history-list">
         {points.map((point) => <article className="product-history-point" key={point.chave}>
-          <div className="product-history-point-title"><strong>{point.rotulo}</strong><span>{quantity(point.quantidade)} item(ns) · {point.pedidos} pedido(s)</span></div>
+          <div className="product-history-point-title"><strong>{point.rotulo}</strong><span>{quantity(point.quantidade)} unidade base · {point.pedidos} pedido(s)</span></div>
           <div className="product-history-bar" aria-hidden="true"><i style={{ width: `${(Number(point.quantidade || 0) / maxQuantity) * 100}%` }} /></div>
-          <b>{quantity(point.quantidade)} item(ns)</b>
+          <b>{quantity(point.quantidade)} unidade base</b>
         </article>)}
       </div>
     </>}</>}

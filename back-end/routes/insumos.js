@@ -1,14 +1,17 @@
 const express = require('express');
-const { body } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Product = require('../models/Product');
 const Recipe = require('../models/Recipe');
 const HistoricoCusto = require('../models/HistoricoCusto');
-const { converterCustoBase, quantidadeNaBase, calcularVariacaoPercentual } = require('../utils/custo');
+const StockMovement = require('../models/StockMovement');
+const { converterCustoBase, calcularVariacaoPercentual } = require('../utils/custo');
+const { calcularResumoCompleto, ajustarEstoque, calcularCustoUnitarioBase, calcularCustoDaFichaTecnica } = require('../utils/estoqueInsumo');
+const { enfileirarRecalculoPorInsumo } = require('../utils/filaCusto');
 
 const router = express.Router();
 
-const normalizeUnit = (unit) => (['kg', 'g', 'l', 'ml', 'un', 'dz'].includes(unit) ? unit : 'kg');
+const normalizeUnit = (unit) => (['kg', 'L', 'un'].includes(unit) ? unit : unit === 'l' ? 'L' : 'kg');
 
 const recalcularReceitasAfetadas = async (produtoId) => {
   const recipes = await Recipe.find({ ingredientes: { $elemMatch: { produtoId } } }).populate('ingredientes.produtoId').populate('produtoId');
@@ -16,18 +19,15 @@ const recalcularReceitasAfetadas = async (produtoId) => {
 
   for (const recipe of recipes) {
     const custoAntigo = Number(recipe.custoUnitario || 0);
-    const ingredientes = recipe.ingredientes.map((item) => ({
-      quantidade: Number(item.quantidade || 0),
-      unidade: item.unidade,
-      custoUnitarioBase: Number(item.produtoId?.custoUnitarioBase || 0),
-    }));
-
-    const custoInsumosTotal = ingredientes.reduce((soma, item) => soma + quantidadeNaBase(item.quantidade, item.unidade) * item.custoUnitarioBase, 0);
-    const custoTotal = custoInsumosTotal + Number(recipe.custoEmbalagem || 0) + Number(recipe.custoIndireto || 0) + Number(recipe.maoDeObra || 0);
-    const custoUnitario = recipe.rendimento > 0 ? custoTotal / Number(recipe.rendimento) : 0;
+    const resultado = await calcularCustoDaFichaTecnica(recipe.ingredientes);
+    const tipoProduto = recipe.produtoId?.tipoProduto || (recipe.produtoId?.aFazer ? 'coz' : 'producao');
+    const rendimento = tipoProduto === 'coz' ? 1 : Number(recipe.rendimento || 1);
+    const disponivel = resultado.fonte === 'insumo';
+    const custoInsumosTotal = disponivel ? Number(resultado.custoTotal) : 0;
+    const custoUnitario = disponivel ? custoInsumosTotal / rendimento : 0;
 
     recipe.custoInsumosTotal = custoInsumosTotal;
-    recipe.custoTotal = custoTotal;
+    recipe.custoTotal = custoInsumosTotal;
     recipe.custoUnitario = custoUnitario;
     recipe.updatedAt = new Date();
     await recipe.save();
@@ -36,6 +36,10 @@ const recalcularReceitasAfetadas = async (produtoId) => {
     if (produto) {
       produto.custo = custoUnitario;
       produto.custoUnitario = custoUnitario;
+      produto.custoCalculado = disponivel ? custoUnitario : null;
+      produto.dataUltimoCalculo = new Date();
+      produto.fonteCalculo = resultado.fonte;
+      produto.custoUltimoSalvo = disponivel ? custoUnitario : 0;
       produto.reajusteRecomendado = false;
       await produto.save();
 
@@ -66,33 +70,79 @@ const recalcularReceitasAfetadas = async (produtoId) => {
 router.use(auth);
 router.use(auth.allowRoles('admin'));
 
-router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('unidadeCompra').optional().isIn(['kg', 'g', 'l', 'ml', 'un', 'dz'])], async (req, res) => {
+router.put('/:id/preco-compra', [body('precoCompra').isFloat({ min: 0 }), body('unidadeCompra').optional().custom((value) => ['kg', 'L', 'un'].includes(value) || value === 'l')], async (req, res) => {
   try {
     const produto = await Product.findById(req.params.id);
     if (!produto) return res.status(404).json({ msg: 'Insumo não encontrado' });
 
     const unidadeCompra = normalizeUnit(req.body.unidadeCompra || produto.unidadeCompra || 'kg');
     const precoCompra = Number(req.body.precoCompra ?? produto.precoCompra ?? 0);
-    const custoUnitarioBase = converterCustoBase(precoCompra, unidadeCompra, 'g');
+    const custoUnitarioBase = calcularCustoUnitarioBase(precoCompra, produto.conteudoPorEmbalagem, produto.unidadeConteudo) || converterCustoBase(precoCompra, unidadeCompra, 'g');
 
     produto.precoCompra = precoCompra;
     produto.unidadeCompra = unidadeCompra;
     produto.custoUnitarioBase = custoUnitarioBase;
     await produto.save();
-
-    const afetados = await recalcularReceitasAfetadas(produto._id);
-    const comReajuste = afetados.filter((item) => Math.abs(Number(item.variacaoPercentual || 0)) > 5);
-    for (const item of comReajuste) {
-      const p = await Product.findById(item.produtoId);
-      if (p) {
-        p.reajusteRecomendado = true;
-        await p.save();
-      }
-    }
-
-    res.json({ produto, afetados, reajusteRecomendado: comReajuste.length > 0 });
+    enfileirarRecalculoPorInsumo(produto._id);
+    res.status(202).json({ produto, recalculoEnfileirado: true });
   } catch (error) {
     res.status(400).json({ msg: error.message });
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  try {
+    const produto = await Product.findById(req.params.id);
+    if (!produto) return res.status(404).json({ msg: 'Insumo não encontrado' });
+    res.json({ ...produto.toObject(), resumo: calcularResumoCompleto(produto) });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.get('/:id/historico', async (req, res) => {
+  try {
+    const produto = await Product.findById(req.params.id);
+    if (!produto) return res.status(404).json({ msg: 'Insumo não encontrado' });
+    const movimentos = await StockMovement.find({ produtoId: produto._id })
+      .populate('createdBy', 'username')
+      .sort({ createdAt: -1 })
+      .limit(200);
+    res.json({ produto: produto.nome, movimentos });
+  } catch (error) { res.status(500).json({ msg: error.message }); }
+});
+
+router.post('/:id/movimentar', [
+  body('quantidadeEmbalagens').isFloat({ min: -1000000 }),
+  body('motivo').trim().notEmpty().withMessage('Informe a justificativa do ajuste de inventário'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+  const session = await require('mongoose').startSession();
+  try {
+    let resultado;
+    await session.withTransaction(async () => {
+      const produto = await Product.findById(req.params.id).session(session);
+      if (!produto) throw new Error('Insumo não encontrado');
+      if (produto.tipo !== 'insumo') throw new Error('O produto selecionado não é um insumo');
+      const delta = Number(req.body.quantidadeEmbalagens);
+      if (delta === 0) throw new Error('Informe uma quantidade diferente de zero');
+      resultado = ajustarEstoque(produto, delta);
+      await produto.save({ session });
+      await StockMovement.create([{
+        produtoId: produto._id,
+        produtoNome: produto.nome,
+        tipo: delta > 0 ? 'entrada' : 'saida',
+        quantidade: Math.abs(delta),
+        unidade: 'embalagem',
+        quantidadePecas: Math.abs(delta),
+        observacao: req.body.motivo || null,
+        createdBy: req.user.id,
+      }], { session });
+    });
+    res.json({ produtoId: req.params.id, ...resultado });
+  } catch (error) {
+    res.status(400).json({ msg: error.message });
+  } finally {
+    await session.endSession();
   }
 });
 

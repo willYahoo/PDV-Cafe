@@ -7,7 +7,7 @@ const pagamentoLabels = {
 };
 
 const dinheiro = (value) => Number(value || 0).toFixed(2).replace('.', ',');
-const textoSeguro = (value) => String(value ?? '').replace(/[<&>\"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '\"': '&quot;', "'": '&#39;' }[char]));
+export const textoSeguro = (value) => String(value ?? '').replace(/[<&>"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[char]));
 const logoUrl = () => typeof window !== 'undefined' ? `${window.location.origin}/Abraco1.png` : '/Abraco1.png';
 
 export const totalPago = (pedido) => (Array.isArray(pedido?.pagamentos)
@@ -67,6 +67,7 @@ export function buildNotaVendaHtml(pedido, { comandaNumero, titulo = 'NOTA DE VE
     <div class="separador"></div>
     <div class="totais">
       <div class="linha"><span>Subtotal:</span><span>R$ ${dinheiro(pedido.subtotal || pedido.total)}</span></div>
+      ${Number(pedido.taxaEntrega) > 0 ? `<div class="linha"><span>Taxa de entrega:</span><span>R$ ${dinheiro(pedido.taxaEntrega)}</span></div>` : ''}
       ${Number(pedido.desconto) > 0 ? `<div class="linha"><span>Desconto:</span><span>-R$ ${dinheiro(pedido.desconto)}</span></div>` : ''}
       ${utilizacaoInterna ? `<div class="linha"><span>Uso interno:</span><span>SIM</span></div>` : ''}
       <div class="linha total"><span>TOTAL:</span><span>R$ ${dinheiro(pedido.total)}</span></div>
@@ -88,14 +89,45 @@ export function compartilharNotaWhatsApp(pedido, opcoes = {}, telefone = '') {
   const texto = buildNotaVendaTexto(pedido, opcoes);
   const fone = telefone ? telefone.replace(/\D/g, '') : (pedido.clienteTelefone || '').replace(/\D/g, '');
   const encodedText = encodeURIComponent(texto);
-  const appUrl = fone ? `whatsapp://send?phone=55${fone}&text=${encodedText}` : `whatsapp://send?text=${encodedText}`;
-  const webUrl = fone ? `https://web.whatsapp.com/send?phone=55${fone}&text=${encodedText}` : `https://web.whatsapp.com/send?text=${encodedText}`;
-  const fallback = window.setTimeout(() => window.open(webUrl, '_blank'), 1200);
-  const appWindow = window.open(appUrl, '_blank');
-  if (!appWindow) {
-    window.clearTimeout(fallback);
+  const appUrl = fone
+    ? `whatsapp://send?phone=55${fone}&text=${encodedText}`
+    : `whatsapp://send?text=${encodedText}`;
+  const webUrl = fone
+    ? `https://wa.me/55${fone}?text=${encodedText}`
+    : `https://wa.me/?text=${encodedText}`;
+
+  const openApp = () => {
+    const link = document.createElement('a');
+    link.href = appUrl;
+    link.rel = 'noreferrer';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const openWeb = () => {
     window.open(webUrl, '_blank');
-  }
+  };
+
+  let fallbackFired = false;
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      clearTimeout(fallbackTimer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  const fallbackTimer = setTimeout(() => {
+    if (!fallbackFired) {
+      fallbackFired = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      openWeb();
+    }
+  }, 1500);
+
+  openApp();
 }
 
 function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VENDA' } = {}) {
@@ -111,5 +143,5 @@ function buildNotaVendaTextoBase(pedido, { comandaNumero, titulo = 'NOTA DE VEND
   }).join('\n');
   const pagamentos = (pedido.pagamentos || []).map((pagamento) => `- ${linha(pagamentoLabels[pagamento.tipo] || pagamento.tipo, `R$ ${dinheiro(pagamento.valorRecebido)}`)}`).join('\n');
 
-  return `*SABOR DE ABRAÇO*\n${titulo}\n--------------------------------\n${linha('Pedido:', `#${pedido.numero}`)}${comandaNumero ? `\n${linha('Comanda:', `#${comandaNumero}`)}` : ''}\n${linha('Data:', new Date(pedido.createdAt || Date.now()).toLocaleString('pt-BR'))}\n${linha('Cliente:', pedido.clienteNome || 'Cliente não identificado')}${pedido.atendente ? `\n${linha('Atendente:', pedido.atendente)}` : ''}\n--------------------------------\n*ITENS DO PEDIDO*\n${itens}\n--------------------------------\n${linha('Subtotal:', `R$ ${dinheiro(pedido.subtotal || pedido.total)}`)}${Number(pedido.desconto) > 0 ? `\n${linha('Desconto:', `-R$ ${dinheiro(pedido.desconto)}`)}` : ''}${utilizacaoInterna ? `\n${linha('Uso interno:', 'SIM')}` : ''}\n*${linha('TOTAL:', `R$ ${dinheiro(pedido.total)}`)}*${pagamentos ? `\n--------------------------------\n*PAGAMENTOS*\n${pagamentos}` : ''}${pago > 0 && falta > 0 ? `\n${linha('FALTA:', `R$ ${dinheiro(falta)}`)}` : ''}\n--------------------------------\n*Sabor de Abraço*\nAgradece a Preferência!\nVolte sempre!`;
+  return `*SABOR DE ABRAÇO*\n${titulo}\n--------------------------------\n${linha('Pedido:', `#${pedido.numero}`)}${comandaNumero ? `\n${linha('Comanda:', `#${comandaNumero}`)}` : ''}\n${linha('Data:', new Date(pedido.createdAt || Date.now()).toLocaleString('pt-BR'))}\n${linha('Cliente:', pedido.clienteNome || 'Cliente não identificado')}${pedido.atendente ? `\n${linha('Atendente:', pedido.atendente)}` : ''}\n--------------------------------\n*ITENS DO PEDIDO*\n${itens}\n--------------------------------\n${linha('Subtotal:', `R$ ${dinheiro(pedido.subtotal || pedido.total)}`)}${Number(pedido.taxaEntrega) > 0 ? `\n${linha('Taxa de entrega:', `R$ ${dinheiro(pedido.taxaEntrega)}`)}` : ''}${Number(pedido.desconto) > 0 ? `\n${linha('Desconto:', `-R$ ${dinheiro(pedido.desconto)}`)}` : ''}${utilizacaoInterna ? `\n${linha('Uso interno:', 'SIM')}` : ''}\n*${linha('TOTAL:', `R$ ${dinheiro(pedido.total)}`)}*${pagamentos ? `\n--------------------------------\n*PAGAMENTOS*\n${pagamentos}` : ''}${pago > 0 && falta > 0 ? `\n${linha('FALTA:', `R$ ${dinheiro(falta)}`)}` : ''}\n--------------------------------\n*Sabor de Abraço*\nAgradece a Preferência!\nVolte sempre!`;
 }

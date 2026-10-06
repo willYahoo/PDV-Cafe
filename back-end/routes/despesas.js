@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const { body, validationResult } = require('express-validator');
 const auth = require('../middleware/auth');
 const Despesa = require('../models/Despesa');
@@ -16,12 +17,28 @@ const validate = (req, res) => {
   return true;
 };
 
+const idValido = (id, res) => {
+  if (mongoose.isValidObjectId(id)) return true;
+  res.status(400).json({ msg: 'ID inválido' });
+  return false;
+};
+
 const gerarParcelasRecorrentes = async (despesaBase) => {
   const parcelas = [];
   const baseDate = new Date(despesaBase.dataVencimento);
   for (let index = 1; index <= 12; index += 1) {
     const proximo = new Date(baseDate);
-    proximo.setMonth(proximo.getMonth() + index);
+    const frequencia = despesaBase.frequenciaRecorrencia || 'mensal';
+    if (frequencia === 'semanal') {
+      proximo.setUTCDate(proximo.getUTCDate() + index * 7);
+    } else {
+      // Parte sempre da data original, mantendo o dia 31 apos meses curtos.
+      const mesDestino = baseDate.getUTCMonth() + index * (frequencia === 'anual' ? 12 : 1);
+      proximo.setUTCDate(1);
+      proximo.setUTCMonth(mesDestino);
+      const ultimoDia = new Date(Date.UTC(proximo.getUTCFullYear(), proximo.getUTCMonth() + 1, 0)).getUTCDate();
+      proximo.setUTCDate(Math.min(baseDate.getUTCDate(), ultimoDia));
+    }
     parcelas.push({
       descricao: despesaBase.descricao,
       categoria: despesaBase.categoria,
@@ -88,6 +105,18 @@ router.get('/resumo', async (req, res) => {
   }
 });
 
+router.get('/:id', async (req, res) => {
+  if (!idValido(req.params.id, res)) return;
+  try {
+    const despesa = await Despesa.findById(req.params.id);
+    if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+    res.json(despesa);
+  } catch (error) {
+    if (error.name === 'CastError') return res.status(400).json({ msg: 'ID inválido' });
+    res.status(500).json({ msg: error.message });
+  }
+});
+
 router.post('/', [
   body('descricao').trim().notEmpty(),
   body('categoria').isIn(['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros']),
@@ -120,11 +149,82 @@ router.put('/:id', [
   body('descricao').optional().trim().notEmpty(),
   body('categoria').optional().isIn(['Aluguel', 'Energia', 'Água', 'Internet', 'Fornecedores/Insumos', 'Salários/Pró-labore', 'Impostos', 'Marketing', 'Manutenção', 'Transporte', 'Outros']),
   body('valor').optional().isFloat({ min: 0.01 }),
+  body('dataVencimento').optional().isISO8601(),
+  body('diaVencimento').optional().isInt({ min: 1, max: 31 }),
+  body('alterarTodas').optional().isBoolean(),
 ], async (req, res) => {
   if (!validate(req, res)) return;
+  if (!idValido(req.params.id, res)) return;
   try {
-    const despesa = await Despesa.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true, runValidators: true });
+    const despesa = await Despesa.findById(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
+
+    const camposEditaveis = ['descricao', 'categoria', 'fornecedor', 'valor'];
+    const atualizacoes = {};
+    camposEditaveis.forEach((campo) => {
+      if (req.body[campo] !== undefined) {
+        atualizacoes[campo] = campo === 'valor' ? Number(req.body[campo]) : req.body[campo];
+      }
+    });
+
+    if (req.body.dataVencimento !== undefined) {
+      atualizacoes.dataVencimento = new Date(req.body.dataVencimento);
+    }
+
+    if (req.body.diaVencimento !== undefined && req.body.alterarTodas !== true) {
+      return res.status(400).json({ msg: 'O dia de vencimento só pode ser aplicado a toda a recorrência' });
+    }
+
+    if (req.body.alterarTodas === true) {
+      if (!despesa.recorrente) {
+        return res.status(400).json({ msg: 'Esta despesa não faz parte de uma recorrência' });
+      }
+
+      if (req.body.dataVencimento !== undefined && req.body.diaVencimento !== undefined) {
+        return res.status(400).json({ msg: 'Informe a data completa ou o dia do vencimento, não ambos' });
+      }
+
+      const origemId = despesa.origemRecorrencia || despesa._id;
+      const despesasDaSerie = await Despesa.find({
+        $or: [
+          { _id: origemId, status: { $ne: 'pago' } },
+          { origemRecorrencia: origemId, status: { $ne: 'pago' } },
+          { _id: req.params.id, status: { $ne: 'pago' } },
+        ],
+      });
+      if (!despesasDaSerie.length) {
+        return res.status(400).json({ msg: 'Não há parcelas pendentes ou atrasadas para atualizar; despesas pagas são preservadas' });
+      }
+      const deslocamentoVencimento = atualizacoes.dataVencimento
+        ? atualizacoes.dataVencimento.getTime() - despesa.dataVencimento.getTime()
+        : 0;
+      const diaVencimento = req.body.diaVencimento === undefined ? null : Number(req.body.diaVencimento);
+
+      await Promise.all(despesasDaSerie.map(async (parcela) => {
+        camposEditaveis.forEach((campo) => {
+          if (atualizacoes[campo] !== undefined) parcela[campo] = atualizacoes[campo];
+        });
+        if (atualizacoes.dataVencimento) {
+          parcela.dataVencimento = new Date(parcela.dataVencimento.getTime() + deslocamentoVencimento);
+        }
+        if (diaVencimento !== null) {
+          const ano = parcela.dataVencimento.getUTCFullYear();
+          const mes = parcela.dataVencimento.getUTCMonth();
+          const ultimoDiaDoMes = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+          parcela.dataVencimento = new Date(Date.UTC(ano, mes, Math.min(diaVencimento, ultimoDiaDoMes)));
+        }
+        await parcela.save();
+      }));
+
+      const despesaAtualizada = await Despesa.findById(req.params.id);
+      return res.json({
+        ...despesaAtualizada.toObject(),
+        parcelasAtualizadas: despesasDaSerie.length,
+      });
+    }
+
+    Object.assign(despesa, atualizacoes);
+    await despesa.save();
     res.json(despesa);
   } catch (error) {
     res.status(400).json({ msg: error.message });
@@ -132,6 +232,7 @@ router.put('/:id', [
 });
 
 router.put('/:id/pagar', async (req, res) => {
+  if (!idValido(req.params.id, res)) return;
   try {
     const despesa = await Despesa.findById(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });
@@ -145,6 +246,7 @@ router.put('/:id/pagar', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (!idValido(req.params.id, res)) return;
   try {
     const despesa = await Despesa.findByIdAndDelete(req.params.id);
     if (!despesa) return res.status(404).json({ msg: 'Despesa não encontrada' });

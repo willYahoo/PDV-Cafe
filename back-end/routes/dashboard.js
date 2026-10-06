@@ -1,8 +1,10 @@
 const express = require('express');
 const Order = require('../models/Order');
 const Comanda = require('../models/Comanda');
+const { indexarComandasPorId, normalizarPagamentos, pagamentosDoPedido, carregarPagamentosDoPeriodo } = require('../utils/pagamento');
 const Customer = require('../models/Customer');
 const Product = require('../models/Product');
+const PaymentSettings = require('../models/PaymentSettings');
 const auth = require('../middleware/auth');
 const { quantidadeNaUnidadeBase } = require('../utils/quantidade');
 
@@ -20,8 +22,44 @@ const dataSaoPaulo = (value = new Date()) => {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
+const formatarDataPtBr = (value) => {
+  const data = new Date(value);
+  return data.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
+
 const inicioHojeSaoPaulo = () => new Date(`${dataSaoPaulo()}T00:00:00-03:00`);
 const horaSaoPaulo = (value) => Number(new Intl.DateTimeFormat('en-US', { timeZone: TIME_ZONE, hour: '2-digit', hourCycle: 'h23' }).format(new Date(value)));
+const pagamentoTaxa = (pagamento) => {
+  const valor = Number(pagamento.valorRecebido || 0);
+  const taxa = Number(pagamento.taxaValor || (valor * Number(pagamento.taxaPercentual || 0) / 100));
+  return { bruto: valor, taxa, liquido: valor - taxa };
+};
+const valorLiquidoPedido = (comandasPorId, pedido) => Math.round((Math.max(0, Number(pedido.total || 0) - pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).taxa, 0)) + Number.EPSILON) * 100) / 100;
+/**
+ * Pedidos originados de comanda têm o dinheiro registrado em
+ * Comanda.historicoPagamentos (fonte única). Sem esta resolução o
+ * pagamento parcial de uma comanda nunca apareceria nos totais.
+ */
+const comandasPorIdDe = async (pedidos) => {
+  const ids = [...new Set(pedidos.map((pedido) => pedido.comandaId).filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+  return indexarComandasPorId(await Comanda.find({ _id: { $in: ids } }).select('historicoPagamentos valorTotal').lean());
+};
+
+const pagamentosDe = (comandasPorId, pedido) => normalizarPagamentos(pagamentosDoPedido(pedido, pedido?.comandaId ? comandasPorId.get(String(pedido.comandaId)) : null));
+
+const pedidoEmAReceberComComanda = (comandasPorId, pedido) => {
+  if (!pedido || pedido.status === 'cancelado' || pedido.status === 'pago' || pedido.utilizacaoInterna) return 0;
+  const total = Number(pedido.total || 0);
+  if (total <= 0) return 0;
+  const lista = pagamentosDe(comandasPorId, pedido);
+  const recebido = lista.filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0);
+  return Math.round((Math.max(0, total - recebido) + Number.EPSILON) * 100) / 100;
+};
 
 const periodoHistorico = (semanaInicio) => {
   const dataInformada = /^\d{4}-\d{2}-\d{2}$/.test(String(semanaInicio || '')) ? new Date(`${semanaInicio}T00:00:00-03:00`) : inicioHojeSaoPaulo();
@@ -34,9 +72,9 @@ const periodoHistorico = (semanaInicio) => {
 };
 
 const inicioDoPeriodo = (periodo) => {
+  if (periodo === 'dia') return inicioHojeSaoPaulo();
   const agora = new Date();
   const inicio = new Date(agora);
-  if (periodo === 'dia') inicio.setHours(0, 0, 0, 0);
   if (periodo === 'semana') {
     inicio.setHours(0, 0, 0, 0);
     inicio.setDate(inicio.getDate() - inicio.getDay());
@@ -70,7 +108,7 @@ router.use((req, res, next) => {
 });
 
 const resumoVendasPeriodo = async (inicio, fim) => {
-  const pedidos = await Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelado' } }).select('total itens').lean();
+  const pedidos = await Order.find({ createdAt: { $gte: inicio, $lt: fim }, status: { $ne: 'cancelado' }, utilizacaoInterna: { $ne: true } }).select('total itens').lean();
   const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
   const itens = pedidos.reduce((sum, pedido) => sum + (pedido.itens || []).reduce((itemSum, item) => itemSum + quantidadeNaUnidadeBase(item), 0), 0);
   return { pedidos: pedidos.length, itens, total, ticketMedio: pedidos.length ? total / pedidos.length : 0 };
@@ -78,11 +116,24 @@ const resumoVendasPeriodo = async (inicio, fim) => {
 
 router.get('/comparar-vendas', async (req, res) => {
   try {
-    const tipo = req.query.tipo === 'mes' ? 'mes' : 'semana';
+    const tipo = ['dia', 'semana', 'mes'].includes(req.query.tipo) ? req.query.tipo : 'semana';
     let periodoA;
     let periodoB;
 
-    if (tipo === 'mes') {
+    if (tipo === 'dia') {
+      const criarDia = (data) => {
+        const inicio = new Date(`${data}T00:00:00-03:00`);
+        const fim = new Date(inicio);
+        fim.setUTCDate(fim.getUTCDate() + 1);
+        return { inicio, fim, rotulo: dataSaoPaulo(inicio) };
+      };
+      const dataA = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo();
+      const dataB = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : dataA;
+      periodoA = criarDia(dataA);
+      periodoB = criarDia(dataB);
+      periodoA.rotulo = formatarDataPtBr(periodoA.inicio);
+      periodoB.rotulo = formatarDataPtBr(periodoB.inicio);
+    } else if (tipo === 'mes') {
       const mesA = /^\d{4}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo().slice(0, 7);
       const mesB = /^\d{4}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : mesA;
       const criarMes = (mes) => {
@@ -91,13 +142,15 @@ router.get('/comparar-vendas', async (req, res) => {
       };
       periodoA = criarMes(mesA);
       periodoB = criarMes(mesB);
+      periodoA.rotulo = formatarDataPtBr(periodoA.inicio);
+      periodoB.rotulo = formatarDataPtBr(periodoB.inicio);
     } else {
       const inicioA = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoA || '')) ? req.query.periodoA : dataSaoPaulo();
       const inicioB = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.periodoB || '')) ? req.query.periodoB : inicioA;
       periodoA = periodoHistorico(inicioA);
       periodoB = periodoHistorico(inicioB);
-      periodoA.rotulo = `${dataSaoPaulo(periodoA.inicio)} a ${dataSaoPaulo(new Date(periodoA.fim.getTime() - 1))}`;
-      periodoB.rotulo = `${dataSaoPaulo(periodoB.inicio)} a ${dataSaoPaulo(new Date(periodoB.fim.getTime() - 1))}`;
+      periodoA.rotulo = `${formatarDataPtBr(periodoA.inicio)} a ${formatarDataPtBr(new Date(periodoA.fim.getTime() - 1))}`;
+      periodoB.rotulo = `${formatarDataPtBr(periodoB.inicio)} a ${formatarDataPtBr(new Date(periodoB.fim.getTime() - 1))}`;
     }
 
     const [resumoA, resumoB] = await Promise.all([
@@ -147,7 +200,7 @@ router.get('/', async (req, res) => {
     inicioInsights.setDate(inicioInsights.getDate() - 90);
     const [periodMetrics, openCommands, pedidosDia, pedidosMes, recebimentosDia, recebimentosMes, clientesCadastrados, clientesRecentes, produtosCatalogo, pedidosInsights, comandasInsights] = await Promise.all([
       Promise.all(periodos.map(async (periodo) => {
-        const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' } }).select('total itens createdAt');
+        const pedidos = await Order.find({ createdAt: { $gte: inicioDoPeriodo(periodo) }, status: { $ne: 'cancelado' }, utilizacaoInterna: { $ne: true } }).select('total itens createdAt utilizacaoInterna');
         const total = pedidos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
         const itens = pedidos.reduce((sum, pedido) => sum + (pedido.itens || []).reduce((itemSum, item) => itemSum + quantidadeNaUnidadeBase(item), 0), 0);
         const produtos = new Map();
@@ -156,22 +209,28 @@ router.get('/', async (req, res) => {
         return { periodo, total, pedidos: pedidos.length, itens, ticketMedio: pedidos.length ? total / pedidos.length : 0, maisVendidos };
       })),
       Comanda.countDocuments({ status: 'aberta' }),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status clienteNome createdAt itens pagamentos'),
-      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status clienteId clienteNome clienteTelefone createdAt itens pagamentos'),
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('dia') } }).select('pagamentos'),
-      Order.find({ 'pagamentos.dataPagamento': { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('pagamentos'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('dia') } }).sort({ createdAt: -1 }).select('numero total status utilizacaoInterna clienteNome createdAt itens pagamentos comandaId'),
+      Order.find({ createdAt: { $gte: inicioDoPeriodo('mes'), $lt: fimDoMesAtual() } }).select('numero total subtotal desconto status utilizacaoInterna clienteId clienteNome clienteTelefone createdAt itens pagamentos tipoAtendimento comandaId'),
+      carregarPagamentosDoPeriodo({ inicio: inicioDoPeriodo('dia'), fim: new Date() }),
+      carregarPagamentosDoPeriodo({ inicio: inicioDoPeriodo('mes'), fim: fimDoMesAtual() }),
       Customer.countDocuments(),
       Customer.find().sort({ createdAt: -1 }).limit(8).select('nome telefone createdAt cafesFidelidade'),
-      Product.find().select('nome codigo preco custo estoque categoria'),
+      Product.find({ tipo: 'venda' }).select('nome codigo preco custo estoque categoria'),
       Order.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status total itens clienteId clienteNome'),
       Comanda.find({ createdAt: { $gte: inicioInsights } }).select('createdAt status'),
     ]);
-    const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado');
+    const comandasPorId = await comandasPorIdDe([...pedidosDia, ...pedidosMes, ...recebimentosDia, ...recebimentosMes]);
+    const vendasHoje = pedidosDia.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
     const vendasHojeTotal = vendasHoje.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
     const vendasHojeItens = vendasHoje.reduce((total, pedido) => total + (pedido.itens || []).reduce((itens, item) => itens + quantidadeNaUnidadeBase(item), 0), 0);
-    const vendasHojeRecebido = recebimentosDia.reduce((total, pedido) => total + (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('dia')).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
-    const vendasHojePendente = Math.max(0, vendasHojeTotal - vendasHojeRecebido);
-    const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado');
+    const vendasHojeRecebido = recebimentosDia.filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((total, pagamento) => total + pagamentoTaxa(pagamento).liquido, 0);
+    const vendasHojePendente = vendasHoje.reduce((total, pedido) => total + pedidoEmAReceberComComanda(comandasPorId, pedido), 0);
+    const vendasMes = pedidosMes.filter((pedido) => pedido.status !== 'cancelado' && !pedido.utilizacaoInterna);
+    const vendasPorTipo = vendasMes.reduce((tipos, pedido) => {
+      const tipo = pedido.tipoAtendimento === 'balcao' ? 'balcao' : 'mesa';
+      tipos[tipo] = (tipos[tipo] || 0) + Number(pedido.total || 0);
+      return tipos;
+    }, { mesa: 0, balcao: 0 });
     const pagamentosMes = new Map();
     const produtosMes = new Map();
     const clientesMes = new Set();
@@ -179,7 +238,7 @@ router.get('/', async (req, res) => {
     vendasMes.forEach((pedido) => {
       if (pedido.clienteNome) clientesMes.add(pedido.clienteNome);
       const dia = new Date(pedido.createdAt).toLocaleDateString('pt-BR');
-      vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + Number(pedido.total || 0));
+      vendasPorDia.set(dia, (vendasPorDia.get(dia) || 0) + valorLiquidoPedido(comandasPorId, pedido));
       (pedido.itens || []).forEach((item) => {
         const atual = produtosMes.get(item.nome) || { nome: item.nome, quantidade: 0, total: 0 };
         atual.quantidade += quantidadeNaUnidadeBase(item);
@@ -187,9 +246,27 @@ router.get('/', async (req, res) => {
         produtosMes.set(item.nome, atual);
       });
     });
-    recebimentosMes.forEach((pedido) => (pedido.pagamentos || []).filter((pagamento) => new Date(pagamento.dataPagamento) >= inicioDoPeriodo('mes') && new Date(pagamento.dataPagamento) < fimDoMesAtual()).forEach((pagamento) => pagamentosMes.set(pagamento.tipo, (pagamentosMes.get(pagamento.tipo) || 0) + Number(pagamento.valorRecebido || 0))));
+    recebimentosMes.filter((pagamento) => pagamento.tipo !== 'credito_loja').forEach((pagamento) => {
+      const atual = pagamentosMes.get(pagamento.tipo) || { bruto: 0, taxa: 0, total: 0 };
+      const valores = pagamentoTaxa(pagamento);
+      atual.bruto += valores.bruto;
+      atual.taxa += valores.taxa;
+      atual.total += valores.liquido;
+      pagamentosMes.set(pagamento.tipo, atual);
+    });
     const totalMes = vendasMes.reduce((total, pedido) => total + Number(pedido.total || 0), 0);
-    const recebidoMes = vendasMes.reduce((total, pedido) => total + (pedido.pagamentos || []).reduce((soma, pagamento) => soma + Number(pagamento.valorRecebido || 0), 0), 0);
+    const descontosQuantidadeMes = vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((subtotal, item) => subtotal + Number(item.economiaQuantidade || 0), 0), 0);
+    const rankingDescontos = new Map();
+    vendasMes.forEach((pedido) => (pedido.itens || []).forEach((item) => {
+      const economia = Number(item.economiaQuantidade || 0);
+      if (economia <= 0) return;
+      const atual = rankingDescontos.get(String(item.produtoId)) || { produtoId: item.produtoId, nome: item.nome, total: 0, unidades: 0 };
+      atual.total += economia;
+      atual.unidades += Number(item.quantidade || 0);
+      rankingDescontos.set(String(item.produtoId), atual);
+    }));
+    const recebidoMes = vendasMes.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamento.valorRecebido, 0), 0);
+    const taxasMes = vendasMes.reduce((total, pedido) => total + pagamentosDe(comandasPorId, pedido).filter((pagamento) => pagamento.tipo !== 'credito_loja').reduce((soma, pagamento) => soma + pagamentoTaxa(pagamento).taxa, 0), 0);
     const statusMes = pedidosMes.reduce((status, pedido) => { status[pedido.status] = (status[pedido.status] || 0) + 1; return status; }, {});
     const clientesRelatorio = new Map(clientesRecentes.map((cliente) => [String(cliente._id), {
       id: cliente._id,
@@ -212,22 +289,25 @@ router.get('/', async (req, res) => {
       itens: vendasMes.reduce((total, pedido) => total + (pedido.itens || []).reduce((soma, item) => soma + quantidadeNaUnidadeBase(item), 0), 0),
       total: totalMes,
       recebido: recebidoMes,
-      pendente: Math.max(0, totalMes - recebidoMes),
+      pendente: vendasMes.reduce((total, pedido) => total + pedidoEmAReceberComComanda(comandasPorId, pedido), 0),
       ticketMedio: vendasMes.length ? totalMes / vendasMes.length : 0,
       status: statusMes,
-      pagamentos: [...pagamentosMes.entries()].map(([tipo, total]) => ({ tipo, total })).sort((a, b) => b.total - a.total),
+      pagamentos: [...pagamentosMes.entries()].map(([tipo, valores]) => ({ tipo, ...valores })).sort((a, b) => b.total - a.total),
+      taxasCartao: taxasMes,
       produtos: [...produtosMes.values()].sort((a, b) => b.quantidade - a.quantidade).slice(0, 10),
       clientes: clientesMes.size,
       vendasPorDia: [...vendasPorDia.entries()].map(([dia, total]) => ({ dia, total })),
+      vendasPorTipo,
+      descontosQuantidade: { total: descontosQuantidadeMes, produtos: [...rankingDescontos.values()].sort((a, b) => b.total - a.total).slice(0, 10) },
     };
     const vendasPorProduto = new Map();
     const inicioEstoqueParado = new Date();
     inicioEstoqueParado.setDate(inicioEstoqueParado.getDate() - 60);
     const vendasUltimos60Dias = new Set();
-    const vendasPorHora = Array.from({ length: 12 }, (_, indice) => ({ hora: indice + 8, pedidos: 0, itens: 0, total: 0 }));
+    const vendasPorHora = Array.from({ length: 13 }, (_, indice) => ({ hora: indice + 8, pedidos: 0, itens: 0, total: 0 }));
     pedidosInsights.filter((pedido) => pedido.status !== 'cancelado').forEach((pedido) => {
       const hora = horaSaoPaulo(pedido.createdAt);
-      if (hora < 8 || hora > 19) return;
+      if (hora < 8 || hora > 20) return;
       const vendaHora = vendasPorHora[hora - 8];
       vendaHora.pedidos += 1;
       vendaHora.total += Number(pedido.total || 0);
@@ -278,7 +358,7 @@ router.get('/', async (req, res) => {
     const clientesComCompra = clientesInsight.size;
     const clientesRecorrentes = [...clientesInsight.values()].filter((cliente) => cliente.compras > 1).length;
     const insights = {
-      vendasPorHora: vendasPorHora.filter((item) => item.pedidos > 0),
+      vendasPorHora,
       horarioPico: vendasPorHora.reduce((pico, item) => item.total > pico.total ? item : pico, { hora: null, total: 0, pedidos: 0, itens: 0 }),
       curvaABC,
       margemProdutos,
@@ -287,7 +367,8 @@ router.get('/', async (req, res) => {
       comparativoMes: { atual: { total: totalMesAtual, pedidos: mesAtual.length }, anterior: { total: totalMesAnterior, pedidos: mesAnterior.length }, variacaoPercentual: totalMesAnterior ? ((totalMesAtual - totalMesAnterior) / totalMesAnterior) * 100 : null },
       fidelidade: { clientesComCompra, clientesRecorrentes, taxaRecorrencia: clientesComCompra ? (clientesRecorrentes / clientesComCompra) * 100 : 0, clientes: clientesFrequentes },
     };
-    res.json({ periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, insights, atualizadoEm: new Date() });
+    const configuracaoTaxas = await PaymentSettings.findOne({ chave: 'principal' }).lean();
+    res.json({ taxasCartao: configuracaoTaxas ? { cartao_credito: Number(configuracaoTaxas.cartao_credito || 0), cartao_debito: Number(configuracaoTaxas.cartao_debito || 0) } : null, periodos: Object.fromEntries(periodMetrics.map((metric) => [metric.periodo, metric])), comandasAbertas: openCommands, pedidosHoje: pedidosDia.slice(0, 30), clientesCadastrados, clientesRecentes, vendasHoje: { pedidos: vendasHoje.length, itens: vendasHojeItens, total: vendasHojeTotal, recebido: vendasHojeRecebido, pendente: vendasHojePendente }, relatorioMes, relatorioClientes: { periodo: relatorioMes.periodo, totalCadastrados: todosClientes.length, clientesComCompra: relatorioClientes.filter((cliente) => cliente.pedidos > 0).length, totalVendido: relatorioClientes.reduce((total, cliente) => total + cliente.total, 0), totalRecebido: relatorioClientes.reduce((total, cliente) => total + cliente.recebido, 0), totalPendente: relatorioClientes.reduce((total, cliente) => total + cliente.pendente, 0), clientes: relatorioClientes }, insights, atualizadoEm: new Date() });
   } catch (error) { res.status(500).json({ msg: error.message }); }
 });
 
